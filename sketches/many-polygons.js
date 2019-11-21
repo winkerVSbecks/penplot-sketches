@@ -14,6 +14,7 @@ const settings = {
 };
 
 const sketch = ({ width, height, units, render }) => {
+  const lines = [];
   // Thickness of pen in cm
   const penThickness = 0.03;
   const polygonLayers = 6;
@@ -49,11 +50,13 @@ const sketch = ({ width, height, units, render }) => {
           return polygon({
             w: tileSize[0] * scale,
             h: tileSize[1] * scale,
+            origin: [tx, ty],
           });
         });
 
         polygons.forEach(points => {
-          drawPolygon(context, [tx, ty], points);
+          drawPolygon(context, points);
+          lines.push(points);
         });
 
         // const points = polygon({
@@ -80,12 +83,10 @@ const sketch = ({ width, height, units, render }) => {
     ];
   };
 
-  function drawPolygon(context, [x, y], points) {
+  function drawPolygon(context, points) {
     context.save();
-    context.translate(x, y);
     context.beginPath();
     points.forEach(p => context.lineTo(p[0], p[1]));
-    context.closePath();
     context.strokeStyle = 'black';
     context.lineWidth = penThickness;
     context.lineJoin = 'round';
@@ -94,19 +95,22 @@ const sketch = ({ width, height, units, render }) => {
     context.restore();
   }
 
-  function polygon({ w, h }) {
-    return [
-      randomPointIn([0.05 * w, 0.5 * w], [0.2 * h, 0.5 * h]),
-      randomPointIn([-0.5 * w, -0.05 * w], [0.05 * h, 0.2 * h]),
-      randomPointIn([-0.5 * w, -0.05 * w], [-0.3 * h, -0.05 * h]),
-      randomPointIn([-0.25 * w, 0.05 * w], [-0.5 * h, -0.3 * h]),
-      randomPointIn([0.05 * w, 0.5 * w], [-0.4 * h, -0.05 * h]),
+  function polygon({ w, h, origin }) {
+    const path = [
+      randomPointIn([0.05 * w, 0.5 * w], [0.2 * h, 0.5 * h], origin),
+      randomPointIn([-0.5 * w, -0.05 * w], [0.05 * h, 0.2 * h], origin),
+      randomPointIn([-0.5 * w, -0.05 * w], [-0.3 * h, -0.05 * h], origin),
+      randomPointIn([-0.25 * w, 0.05 * w], [-0.5 * h, -0.3 * h], origin),
+      randomPointIn([0.05 * w, 0.5 * w], [-0.4 * h, -0.05 * h], origin),
     ];
+
+    path.push(path[0]);
+    return path;
   }
 };
 
 canvasSketch(sketch, settings);
 
-function randomPointIn([xMin, xMax], [yMin, yMax]) {
-  return [random.range(xMin, xMax), random.range(yMin, yMax)];
+function randomPointIn([xMin, xMax], [yMin, yMax], [x, y]) {
+  return [x + random.range(xMin, xMax), y + random.range(yMin, yMax)];
 }
