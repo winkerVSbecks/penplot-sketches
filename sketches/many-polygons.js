@@ -1,10 +1,11 @@
 const canvasSketch = require('canvas-sketch');
 const { pathsToSVG } = require('canvas-sketch-util/penplot');
 const random = require('canvas-sketch-util/random');
+const { lerp } = require('canvas-sketch-util/math');
 const clustering = require('density-clustering');
 const convexHull = require('convex-hull');
 
-const debug = false;
+const debug = true;
 
 const settings = {
   dimensions: 'a4',
@@ -13,32 +14,16 @@ const settings = {
 };
 
 const sketch = ({ width, height, units, render }) => {
-  // A large point count will produce more defined results
-  const pointCount = 50000;
-  let points = Array.from(new Array(pointCount)).map(() => {
-    const margin = 2;
-    return [
-      random.range(margin, width - margin),
-      random.range(margin, height - margin),
-    ];
-  });
-
-  // We will add to this over time
-  const lines = [];
-
-  // The N value for k-means clustering
-  // Lower values will produce bigger chunks
-  const clusterCount = 3;
-
   // Thickness of pen in cm
   const penThickness = 0.03;
+  const polygonLayers = 6;
 
-  // Run at 30 FPS until we run out of points
-  let loop = setInterval(() => {
-    const remaining = integrate();
-    if (!remaining) return clearInterval(loop);
-    render();
-  }, 1000 / 30);
+  const gridSize = [6, 12];
+  const padding = width * 0.2;
+  const tileSize = [
+    (width - padding * 2) / gridSize[0],
+    (height - padding * 2) / gridSize[1],
+  ];
 
   return ({ context }) => {
     // Clear canvas
@@ -48,26 +33,36 @@ const sketch = ({ width, height, units, render }) => {
     context.fillStyle = 'white';
     context.fillRect(0, 0, width, height);
 
-    // Draw lines
-    lines.forEach(points => {
-      context.beginPath();
-      points.forEach(p => context.lineTo(p[0], p[1]));
-      context.strokeStyle = debug ? 'blue' : 'black';
-      context.lineWidth = penThickness;
-      context.lineJoin = 'round';
-      context.lineCap = 'round';
-      context.stroke();
-    });
+    for (let x = 0; x < gridSize[0]; x++) {
+      for (let y = 0; y < gridSize[1]; y++) {
+        // get a 0..1 UV coordinate
+        const u = gridSize[0] <= 1 ? 0.5 : x / (gridSize[0] - 1);
+        const v = gridSize[1] <= 1 ? 0.5 : y / (gridSize[1] - 1);
 
-    // Turn on debugging if you want to see the points
-    if (debug) {
-      points.forEach(p => {
-        context.beginPath();
-        context.arc(p[0], p[1], 0.02, 0, Math.PI * 2);
-        context.strokeStyle = context.fillStyle = 'red';
-        context.lineWidth = penThickness;
-        context.fill();
-      });
+        // scale to dimensions with a border padding
+        const tx = lerp(padding, width - padding, u);
+        const ty = lerp(padding, height - padding, v);
+
+        const polygons = Array.from(new Array(polygonLayers)).map((_, idx) => {
+          const scale = lerp(0.1, 1, (idx + 1) / polygonLayers);
+
+          return polygon({
+            w: tileSize[0] * scale,
+            h: tileSize[1] * scale,
+          });
+        });
+
+        polygons.forEach(points => {
+          drawPolygon(context, [tx, ty], points);
+        });
+
+        // const points = polygon({
+        //   w: tileSize[0] * 0.65,
+        //   h: tileSize[1] * 0.65,
+        // });
+
+        // drawPolygon(context, [tx, ty], points);
+      }
     }
 
     return [
@@ -85,42 +80,33 @@ const sketch = ({ width, height, units, render }) => {
     ];
   };
 
-  function integrate() {
-    // Not enough points in our data set
-    if (points.length <= clusterCount) return false;
+  function drawPolygon(context, [x, y], points) {
+    context.save();
+    context.translate(x, y);
+    context.beginPath();
+    points.forEach(p => context.lineTo(p[0], p[1]));
+    context.closePath();
+    context.strokeStyle = 'black';
+    context.lineWidth = penThickness;
+    context.lineJoin = 'round';
+    context.lineCap = 'round';
+    context.stroke();
+    context.restore();
+  }
 
-    // k-means cluster our data
-    const scan = new clustering.KMEANS();
-    const clusters = scan.run(points, clusterCount).filter(c => c.length >= 3);
-
-    // Ensure we resulted in some clusters
-    if (clusters.length === 0) return;
-
-    // Sort clusters by density
-    clusters.sort((a, b) => a.length - b.length);
-
-    // Select the least dense cluster
-    const cluster = clusters[0];
-    const positions = cluster.map(i => points[i]);
-
-    // Find the hull of the cluster
-    const edges = convexHull(positions);
-
-    // Ensure the hull is large enough
-    if (edges.length <= 2) return;
-
-    // Create a closed polyline from the hull
-    let path = edges.map(c => positions[c[0]]);
-    path.push(path[0]);
-
-    // Add to total list of polylines
-    lines.push(path);
-
-    // Remove those points from our data set
-    points = points.filter(p => !positions.includes(p));
-
-    return true;
+  function polygon({ w, h }) {
+    return [
+      randomPointIn([0.05 * w, 0.5 * w], [0.2 * h, 0.5 * h]),
+      randomPointIn([-0.5 * w, -0.05 * w], [0.05 * h, 0.2 * h]),
+      randomPointIn([-0.5 * w, -0.05 * w], [-0.3 * h, -0.05 * h]),
+      randomPointIn([-0.25 * w, 0.05 * w], [-0.5 * h, -0.3 * h]),
+      randomPointIn([0.05 * w, 0.5 * w], [-0.4 * h, -0.05 * h]),
+    ];
   }
 };
 
 canvasSketch(sketch, settings);
+
+function randomPointIn([xMin, xMax], [yMin, yMax]) {
+  return [random.range(xMin, xMax), random.range(yMin, yMax)];
+}
