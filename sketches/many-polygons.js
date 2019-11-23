@@ -2,10 +2,6 @@ const canvasSketch = require('canvas-sketch');
 const { pathsToSVG } = require('canvas-sketch-util/penplot');
 const random = require('canvas-sketch-util/random');
 const { lerp } = require('canvas-sketch-util/math');
-const clustering = require('density-clustering');
-const convexHull = require('convex-hull');
-
-const debug = true;
 
 const settings = {
   dimensions: 'a4',
@@ -58,13 +54,6 @@ const sketch = ({ width, height, units, render }) => {
           drawPolygon(context, points);
           lines.push(points);
         });
-
-        // const points = polygon({
-        //   w: tileSize[0] * 0.65,
-        //   h: tileSize[1] * 0.65,
-        // });
-
-        // drawPolygon(context, [tx, ty], points);
       }
     }
 
