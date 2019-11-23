@@ -1,7 +1,9 @@
 const canvasSketch = require('canvas-sketch');
 const { renderPaths } = require('canvas-sketch-util/penplot');
 const random = require('canvas-sketch-util/random');
-const { lerp } = require('canvas-sketch-util/math');
+const { lerp, mapRange, linspace } = require('canvas-sketch-util/math');
+const { clipPolylinesToBox } = require('canvas-sketch-util/geometry');
+const MarchingSquaresJS = require('marchingsquares');
 
 const settings = {
   dimensions: 'A4',
@@ -15,7 +17,6 @@ const sketch = ({ width, height, units, render }) => {
   const gridSize = [3, 4];
   const padding = width * 0.2;
   const tileSize = (width - padding * 2) / gridSize[0];
-
   const marginY = (height - 4 * tileSize) / 2;
 
   const boxes = subDivide(
@@ -44,18 +45,25 @@ const sketch = ({ width, height, units, render }) => {
 
   const paths = maybeSubdivide(boxes, 2);
 
+  const isoLines = [];
   const lines = paths
     .filter(() => random.chance())
-    .map(([[xMin, xMax], [yMin, yMax]]) => [
-      [xMin, yMin],
-      [xMax, yMin],
-      [xMax, yMax],
-      [xMin, yMax],
-    ])
+    .map(([[xMin, xMax], [yMin, yMax]]) => {
+      if (random.chance()) {
+        isoLines.push(drawIsolines([xMin, xMax], [yMin, yMax]));
+      }
+
+      return [
+        [xMin, yMin],
+        [xMax, yMin],
+        [xMax, yMax],
+        [xMin, yMax],
+      ];
+    })
     .map(pts => [...pts, pts[0]]);
 
   return props =>
-    renderPaths(lines, {
+    renderPaths([...lines, ...isoLines], {
       ...props,
       lineJoin: 'round',
       lineCap: 'round',
@@ -80,4 +88,72 @@ function subDivide([xMin, xMax], [yMin, yMax], [xSize, ySize]) {
   }
 
   return boxes;
+}
+
+function drawIsolines([xMin, xMax], [yMin, yMax]) {
+  const size = xMax - xMin;
+  const offset = [xMin, yMin];
+  const intervals = linspace(random.rangeFloor(6, 12));
+  const gridSize = 100;
+  const lines = [];
+  const time = Math.sin(random.range(0, 1) * Math.PI);
+  let data = [];
+
+  for (let y = 0; y < gridSize; y++) {
+    data[y] = [];
+    for (let x = 0; x < gridSize; x++) {
+      // get a 0..1 UV coordinate
+      const u = x / (gridSize - 1);
+      const v = y / (gridSize - 1);
+
+      const t = {
+        x: lerp(0, size, u),
+        y: lerp(0, size, v),
+      };
+
+      const scale = gridSize;
+      const n = random.noise3D(x / scale, y / scale, time);
+      data[y].push(mapRange(n, -1, 1, 0, 1));
+    }
+  }
+
+  const padding = ((xMax - xMin) * 0.2) / 2;
+  intervals.forEach((_, idx) => {
+    if (idx > 0) {
+      const lowerBand = intervals[idx - 1];
+      const upperBand = intervals[idx];
+      const band = MarchingSquaresJS.isoBands(
+        data,
+        lowerBand,
+        upperBand - lowerBand,
+        {
+          successCallback(bands) {
+            bands.forEach(band => {
+              const scaledBand = band.map(([x, y]) => [
+                offset[0] + mapRange(x, 0, 99, 0, size),
+                offset[1] + mapRange(y, 0, 99, 0, size),
+              ]);
+
+              lines.push(
+                clipPolylinesToBox(
+                  [drawShape(scaledBand)],
+                  [
+                    [xMin + padding, yMin + padding],
+                    [xMax - padding, yMax - padding],
+                  ],
+                ),
+              );
+            });
+          },
+          noQuadTree: true,
+        },
+      );
+    }
+  });
+
+  return lines;
+}
+
+function drawShape([start, ...pts]) {
+  return [start, ...pts, start];
 }
