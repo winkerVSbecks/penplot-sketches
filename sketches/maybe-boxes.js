@@ -1,7 +1,7 @@
 const canvasSketch = require('canvas-sketch');
-const { pathsToPolylines, renderPaths } = require('canvas-sketch-util/penplot');
+const { renderPaths } = require('canvas-sketch-util/penplot');
 const random = require('canvas-sketch-util/random');
-const { lerp, linspace } = require('canvas-sketch-util/math');
+const { lerp } = require('canvas-sketch-util/math');
 
 const settings = {
   dimensions: 'A4',
@@ -24,65 +24,35 @@ const sketch = ({ width, height, units, render }) => {
     [3, 4],
   );
 
-  // const paths = [];
-
   function maybeSubdivide(boxes, depth) {
-    // console.log(depth);
     const paths = [];
+
     if (depth === 0) return paths;
 
     boxes.forEach(box => {
       if (random.chance()) {
-        const subBoxes = subDivide(
-          [box[0][0], box[1][0]],
-          [box[0][1], box[2][1]],
-          [2, 2],
-        );
+        const subBoxes = subDivide(...box, [2, 2]);
 
-        // if (depth > 0) {
         paths.push(...maybeSubdivide(subBoxes, depth - 1, paths));
-        // } else {
-        //   paths.push(...subBoxes);
-        // }
       } else {
         paths.push(box);
       }
     });
 
     return paths;
-
-    // return depth === 0 ? paths : maybeSubdivide(boxes, depth - 1, paths);
   }
 
-  const paths = maybeSubdivide(boxes, 5);
+  const paths = maybeSubdivide(boxes, 2);
 
-  // boxes.forEach(box => {
-  //   if (random.chance()) {
-  //     const subBoxes = subDivide(
-  //       [box[0][0], box[1][0]],
-  //       [box[0][1], box[2][1]],
-  //       [2, 2],
-  //     );
-
-  //     // paths.push(...subBoxes);
-  //     subBoxes.forEach(subBox => {
-  //       if (random.chance()) {
-  //         const subSubBoxes = subDivide(
-  //           [subBox[0][0], subBox[1][0]],
-  //           [subBox[0][1], subBox[2][1]],
-  //           [2, 2],
-  //         );
-  //         paths.push(...subSubBoxes);
-  //       } else {
-  //         paths.push(subBox);
-  //       }
-  //     });
-  //   } else {
-  //     paths.push(box);
-  //   }
-  // });
-
-  lines = paths.filter(() => random.chance()).map(pts => [...pts, pts[0]]);
+  const lines = paths
+    .filter(() => random.chance())
+    .map(([[xMin, xMax], [yMin, yMax]]) => [
+      [xMin, yMin],
+      [xMax, yMin],
+      [xMax, yMax],
+      [xMin, yMax],
+    ])
+    .map(pts => [...pts, pts[0]]);
 
   return props =>
     renderPaths(lines, {
@@ -92,28 +62,22 @@ const sketch = ({ width, height, units, render }) => {
       lineWidth: 0.05,
       optimize: true,
     });
-
-  function subDivide([xMin, xMax], [yMin, yMax], [xSize, ySize]) {
-    const boxes = [];
-    for (let x = 0; x < xSize; x++) {
-      for (let y = 0; y < ySize; y++) {
-        const box = [
-          [x, y],
-          [x + 1, y],
-          [x + 1, y + 1],
-          [x, y + 1],
-        ].map(pt => {
-          const u = pt[0] / xSize;
-          const v = pt[1] / ySize;
-          return [lerp(xMin, xMax, u), lerp(yMin, yMax, v)];
-        });
-
-        boxes.push(box);
-      }
-    }
-
-    return boxes;
-  }
 };
 
 canvasSketch(sketch, settings);
+
+function subDivide([xMin, xMax], [yMin, yMax], [xSize, ySize]) {
+  const boxes = [];
+  for (let x = 0; x < xSize; x++) {
+    for (let y = 0; y < ySize; y++) {
+      const box = [
+        [x, x + 1].map(v => lerp(xMin, xMax, v / xSize)),
+        [y, y + 1].map(v => lerp(yMin, yMax, v / ySize)),
+      ];
+
+      boxes.push(box);
+    }
+  }
+
+  return boxes;
+}
