@@ -106,3 +106,5 @@ dist
 tmp
 
 prints/*.png
+
+.DS_Store
