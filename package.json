@@ -19,6 +19,7 @@
     "delaunay-triangulate": "^1.1.6",
     "density-clustering": "^1.3.0",
     "marchingsquares": "^1.3.3",
-    "pack-spheres": "^1.0.4"
+    "pack-spheres": "^1.0.4",
+    "poisson-disk-sampling": "^1.0.6"
   }
 }
