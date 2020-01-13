@@ -11,6 +11,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.0.20",
     "canvas-sketch": "^0.7.1",
     "canvas-sketch-cli": "^1.11.7",
     "canvas-sketch-util": "^1.10.0",
