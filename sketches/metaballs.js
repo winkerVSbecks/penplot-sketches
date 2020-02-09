@@ -1,18 +1,18 @@
 const canvasSketch = require('canvas-sketch');
 const { lerp } = require('canvas-sketch-util/math');
+const Random = require('canvas-sketch-util/random');
 const {
   renderPaths,
   createPath,
   pathsToPolylines,
 } = require('canvas-sketch-util/penplot');
 const { clipPolylinesToBox } = require('canvas-sketch-util/geometry');
-const Random = require('canvas-sketch-util/random');
 
 const settings = {
-  dimensions: 'a3',
+  dimensions: 'letter',
   orientation: 'portrait',
   scaleToView: true,
-  prefix: 'a3',
+  prefix: 'letter',
   pixelsPerInch: 300,
   units: 'cm',
 };
@@ -22,7 +22,7 @@ const sketch = props => {
 
   const SUM_THRESHOLD = 1;
   const NUM_CIRCLES = 12;
-  const RESOLUTION = 96; //128
+  const RESOLUTION = 128;
 
   const circles = new Array(NUM_CIRCLES).fill(0).map(() => ({
     x: Random.range(0, width),
@@ -63,37 +63,37 @@ const sketch = props => {
     paths.push(p);
   }
 
-  for (let y = 0; y < RESOLUTION; y++) {
-    const p = createPath();
+  // for (let y = 0; y < RESOLUTION; y++) {
+  //   const p = createPath();
 
-    for (let x = 0; x < RESOLUTION; x++) {
-      const u = x / (RESOLUTION - 1);
-      const v = y / (RESOLUTION - 1);
+  //   for (let x = 0; x < RESOLUTION; x++) {
+  //     const u = x / (RESOLUTION - 1);
+  //     const v = y / (RESOLUTION - 1);
 
-      const size = width / RESOLUTION / 2;
+  //     const size = width / RESOLUTION / 2;
 
-      const t = {
-        x: lerp(0, width, u),
-        y: lerp(0, height, v),
-      };
+  //     const t = {
+  //       x: lerp(0, width, u),
+  //       y: lerp(0, height, v),
+  //     };
 
-      const sum = circles.reduce((sum, c) => {
-        const dx = t.x - c.x;
-        const dy = t.y - c.y;
-        const d2 = dx * dx + dy * dy;
-        return sum + (c.r * c.r) / d2;
-      }, 0);
+  //     const sum = circles.reduce((sum, c) => {
+  //       const dx = t.x - c.x;
+  //       const dy = t.y - c.y;
+  //       const d2 = dx * dx + dy * dy;
+  //       return sum + (c.r * c.r) / d2;
+  //     }, 0);
 
-      if (sum > SUM_THRESHOLD) {
-        p.lineTo(t.x, t.y - size);
-      } else {
-        p.moveTo(t.x, t.y - size);
-      }
-    }
-    paths.push(p);
-  }
+  //     if (sum > SUM_THRESHOLD) {
+  //       p.lineTo(t.x, t.y - size);
+  //     } else {
+  //       p.moveTo(t.x, t.y - size);
+  //     }
+  //   }
+  //   paths.push(p);
+  // }
 
-  const margin = width * 0.02;
+  const margin = width * 0.04;
   const clipBox = [
     [margin, margin],
     [width - margin, height - margin],

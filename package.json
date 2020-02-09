@@ -5,13 +5,16 @@
   "main": "index.js",
   "scripts": {
     "start": "canvas-sketch --output=prints --stream=gif",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "json": "cat quickdraw-dataset/circle.ndjson | npx ndjson-filter 'd.recognized == true' | npx ndjson-reduce > quickdraw-dataset/circle.json",
+    "json_2000": "cat quickdraw-dataset/pizza.ndjson | npx ndjson-filter 'd.recognized == true' | head -n 2000 | npx ndjson-reduce > quickdraw-dataset/pizza_5000.json"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.0.20",
+    "@magenta/sketch": "^0.2.0",
     "canvas-sketch": "^0.7.1",
     "canvas-sketch-cli": "^1.11.7",
     "canvas-sketch-util": "^1.10.0",
@@ -19,7 +22,10 @@
     "d3-quadtree": "^1.0.7",
     "delaunay-triangulate": "^1.1.6",
     "density-clustering": "^1.3.0",
+    "lodash": "^4.17.15",
     "marchingsquares": "^1.3.3",
+    "ml5": "^0.4.3",
+    "ndjson-cli": "^0.3.1",
     "pack-spheres": "^1.0.4",
     "poisson-disk-sampling": "^1.0.6"
   }
