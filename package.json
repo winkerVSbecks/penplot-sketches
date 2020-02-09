@@ -13,6 +13,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@anvaka/streamlines": "^1.1.0",
     "@ffmpeg-installer/ffmpeg": "^1.0.20",
     "@magenta/sketch": "^0.2.0",
     "canvas-sketch": "^0.7.1",
