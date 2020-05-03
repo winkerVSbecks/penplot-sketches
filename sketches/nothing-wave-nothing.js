@@ -14,7 +14,7 @@ const settings = {
   prefix: '21x29.7-',
 };
 
-const sketch = props => {
+const sketch = (props) => {
   const { width, height } = props;
 
   const gridSize = [40, 40];
@@ -68,7 +68,7 @@ const sketch = props => {
     [width - margin, height - margin],
   ];
 
-  return props =>
+  return (props) =>
     renderPaths(clipPolylinesToBox(lines, clipBox, false, false), {
       ...props,
       lineJoin: 'round',
