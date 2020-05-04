@@ -1,9 +1,5 @@
 const canvasSketch = require('canvas-sketch');
-const {
-  renderPaths,
-  createPath,
-  pathsToPolylines,
-} = require('canvas-sketch-util/penplot');
+const { renderPaths, pathsToPolylines } = require('canvas-sketch-util/penplot');
 const { lerp } = require('canvas-sketch-util/math');
 const { clipPolylinesToBox } = require('canvas-sketch-util/geometry');
 const Renderer3D = require('../utils/renderer-3d');
