@@ -10,23 +10,23 @@ const cubeEdges = [
 ];
 
 const faces = {
-  top: ([u, v], d, s) => [
-    [u - s, d, v - s],
-    [u + s, d, v - s],
-    [u + s, d, v + s],
-    [u - s, d, v + s],
+  top: ([x, y, z], [w, h]) => [
+    [x - w, y, z - w],
+    [x + w, y, z - w],
+    [x + w, y, z + w],
+    [x - w, y, z + w],
   ],
-  right: ([u, v], d, s) => [
-    [u - s, v - s, d],
-    [u + s, v - s, d],
-    [u + s, v + s, d],
-    [u - s, v + s, d],
+  left: ([x, y, z], [w, h]) => [
+    [x - w, y - h, z],
+    [x + w, y - h, z],
+    [x + w, y + h, z],
+    [x - w, y + h, z],
   ],
-  left: ([v, u], d, s) => [
-    [d, u - s, v - s],
-    [d, u + s, v - s],
-    [d, u + s, v + s],
-    [d, u - s, v + s],
+  right: ([x, y, z], [w, h]) => [
+    [x, y - h, z - w],
+    [x, y + h, z - w],
+    [x, y + h, z + w],
+    [x, y - h, z + w],
   ],
 };
 
@@ -85,16 +85,6 @@ class Renderer3D {
       vertex.map((v) => [v]),
     );
 
-    // translate = matrixMultiply(
-    //   // prettier-ignore
-    // this.rotationX = [
-    //     [1, 1, 0],
-    //     [0, 1, 0],
-    //     [0, 1, 0],
-    //   ],
-    //   rotated,
-    // );
-
     // prettier-ignore
     const projection = [
       [this.d, 0, 0],
@@ -105,51 +95,6 @@ class Renderer3D {
       (v) => v * this.scale,
     );
     return [this.origin[0] / 2 + x, this.origin[1] / 2 + y];
-  }
-
-  cube(context, size, stroke) {
-    // prettier-ignore
-    const cube = [
-      [-size, -size, -size],
-      [size, -size, -size],
-      [size, size, -size],
-      [-size, size, -size],
-      [-size, -size, size],
-      [size, -size, size],
-      [size, size, size],
-      [-size, size, size],
-    ].map(this.convert3dTo2d);
-
-    cubeEdges.forEach(([a, b]) => {
-      line(context, cube[a], cube[b], { lineWidth: 1, stroke });
-    });
-  }
-
-  getFace(direction, size = 0.1, [u, v] = [0, 0], distance = 0.5) {
-    return faces[direction]([u, v], distance, size / 2);
-  }
-
-  /**
-   * Draw a face of the isometric cube
-   */
-  face(context, faceProps, fill = '#fff', stroke) {
-    context.fillStyle = fill;
-    const face = this.getFace(...faceProps).map(this.convert3dTo2d);
-
-    // drawShape(context, face);
-    context.fill();
-
-    if (stroke) {
-      context.strokeStyle = stroke;
-      context.stroke();
-    }
-  }
-
-  line(a, b) {
-    const p = createPath();
-    p.moveTo(...this.convert3dTo2d(a));
-    p.lineTo(...this.convert3dTo2d(b));
-    return p;
   }
 
   debug() {
@@ -166,43 +111,104 @@ class Renderer3D {
     return p;
   }
 
-  path([start, ...pts]) {
+  line(a, b) {
+    const p = createPath();
+    p.moveTo(...this.convert3dTo2d(a));
+    p.lineTo(...this.convert3dTo2d(b));
+    return p;
+  }
+
+  path([start, ...pts], closed = false) {
     const p = createPath();
     p.moveTo(...this.convert3dTo2d(start));
     pts.forEach((pt) => {
       p.lineTo(...this.convert3dTo2d(pt));
     });
+
+    if (closed) {
+      p.closePath();
+    }
+
     return p;
   }
 
-  shape(context, shape, stroke) {
-    context.strokeStyle = stroke;
-    // drawShape(context, shape.map(this.convert3dTo2d));
-    context.stroke();
+  getFace({ direction, size = [0.1, 0.1], location }) {
+    const face = faces[direction](location, size);
+    return [...face, face[0]];
   }
 
-  text(context, string, location, direction, fill, font = '16px monospace') {
-    const angleY = this.angles.y - Math.PI / 2;
-    const rotationY =
-      direction === 'right'
-        ? [
-            [Math.cos(angleY), 0, -Math.sin(angleY)],
-            [0, 1, 0],
-            [Math.sin(angleY), 0, Math.cos(angleY)],
-          ]
-        : this.rotationY;
-    let r = matrixMultiply(this.rotationX, rotationY);
+  /**
+   * Draw a face of the isometric cube
+   */
+  face(faceProps) {
+    const face = this.getFace(faceProps);
+    return this.path(face, true);
+  }
 
-    const [x, y] = this.convert3dTo2d(location);
+  cuboidGeometry({ size: [w, h], location: [x, y, z] = [0, 0, 0] }) {
+    const top = this.getFace({
+      direction: 'top',
+      size: [w, h],
+      location: [x, y - h, z],
+    }).map(this.convert3dTo2d);
 
-    context.save();
-    context.font = font;
-    context.textBaseline = 'top';
-    context.textAlign = 'left';
-    context.fillStyle = fill;
-    context.transform(r[0][0], r[1][0], r[0][1], r[1][1], x, y);
-    context.fillText(string, 0, 0);
-    context.restore();
+    const left = this.getFace({
+      direction: 'left',
+      size: [w, h],
+      location: [x, y, z + w],
+    }).map(this.convert3dTo2d);
+
+    const right = this.getFace({
+      direction: 'right',
+      size: [w, h],
+      location: [x + w, y, z],
+    }).map(this.convert3dTo2d);
+
+    return [left, right, top];
+  }
+
+  cuboid({ size, location }) {
+    const top = this.getFace({
+      direction: 'top',
+      size: [w, h],
+      location: [x, y - h, z],
+    });
+
+    const left = this.getFace({
+      direction: 'left',
+      size: [w, h],
+      location: [x, y, z + w],
+    });
+
+    const right = this.getFace({
+      direction: 'right',
+      size: [w, h],
+      location: [x + w, y, z],
+    });
+
+    return this.shape([top, right, left], true);
+  }
+
+  cube({ size, location = [0, 0, 0] }) {
+    return this.cuboid({ size: [size, size], location });
+  }
+
+  shape(shape, closed = false) {
+    const p = createPath();
+
+    shape.forEach(([start, ...pts]) => {
+      p.moveTo(...this.convert3dTo2d(start));
+
+      pts.forEach((pt) => {
+        p.lineTo(...this.convert3dTo2d(pt));
+      });
+
+      if (closed) {
+        p.closePath();
+      }
+    });
+
+    return p;
   }
 }
 

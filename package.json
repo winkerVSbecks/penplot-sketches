@@ -29,6 +29,7 @@
     "ndjson-cli": "^0.3.1",
     "pack-spheres": "^1.0.4",
     "poisson-disk-sampling": "^1.0.6",
+    "polygon-clipping": "^0.14.3",
     "polyhedra": "^1.0.0"
   }
 }
