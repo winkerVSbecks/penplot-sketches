@@ -1,5 +1,5 @@
 const canvasSketch = require('canvas-sketch');
-const { renderPaths, pathsToPolylines } = require('canvas-sketch-util/penplot');
+const { renderPaths } = require('canvas-sketch-util/penplot');
 const Random = require('canvas-sketch-util/random');
 const { clipPolylinesToBox } = require('canvas-sketch-util/geometry');
 const polygonClipping = require('polygon-clipping');
@@ -15,84 +15,54 @@ const settings = {
 };
 
 const sketch = (props) => {
-  const { width, height, units } = props;
+  const { width, height } = props;
 
   const renderer = new Renderer3D(
     1,
-    { x: Math.atan(1 / 2 ** 0.5), y: Math.PI / 4, z: 0 },
+    { x: Math.atan(1 / 2 ** 0.5), y: 1.25 * Math.PI, z: 0 },
     width,
-    [width, height],
+    [width / 2, height / 2],
   );
 
   const margin = 0.05 * width;
-
-  let paths = [];
 
   const clipBox = [
     [margin, margin],
     [width - margin, height - margin],
   ];
 
-  // paths.push(renderer.debug());
+  let boxes = [];
+  let paths = [];
+  const stacks = makeStacks();
 
-  // paths.push(
-  //   renderer.face({
-  //     direction: 'top',
-  //     size: [0.3, 0.3],
-  //     location: [0, 0.5, 0],
-  //   }),
-  // );
+  // boxes.push({ size: [0.2, 0.2, 0.2], location: [0, 0.3, 0] });
+  // boxes.push({ size: [0.1, 0.1, 0.1], location: [0.05, 0.2, 0.05] });
+  // boxes.push({ size: [0.2, 0.2, 0.2], location: [0, 0, 0] });
 
-  // paths.push([
-  //   [0.25 * width, 0.25 * height],
-  //   [0.5 * width, 0.25 * height],
-  //   [0.5 * width, 0.5 * height],
-  //   [0.25 * width, 0.5 * height],
-  //   [0.25 * width, 0.25 * height],
-  // ]);
+  // for (let box of boxes) {
+  //   const cuboid = renderer.cuboidGeometry(box);
+  //   paths.push(...cuboid);
+  // }
 
-  // paths.push([
-  //   [0.55 * width, 0.4 * height],
-  //   [0.75 * width, 0.4 * height],
-  //   [0.75 * width, 0.6 * height],
-  //   [0.55 * width, 0.6 * height],
-  //   [0.55 * width, 0.4 * height],
-  // ]);
-
-  // paths.push([
-  //   [0.6 * width, 0.5 * height],
-  //   [0.9 * width, 0.5 * height],
-  //   [0.9 * width, 0.75 * height],
-  //   [0.6 * width, 0.75 * height],
-  //   [0.6 * width, 0.5 * height],
-  // ]);
-
-  // const clipper = [
-  //   [0.4 * width, 0.45 * height],
-  //   [0.8 * width, 0.45 * height],
-  //   [0.8 * width, 0.65 * height],
-  //   [0.4 * width, 0.65 * height],
-  //   [0.4 * width, 0.45 * height],
-  // ];
-
-  // paths = paths.map(
-  //   (p) => polygonClipping.difference([p], [clipper]).flat()[0],
-  // );
-
-  // paths.push(clipper);
-
-  for (let idx = 0; idx < 5; idx++) {
-    const cuboid = renderer.cuboidGeometry(getCuboid());
-
-    cuboid.forEach((face) => {
-      paths = paths.map((p) => {
-        const res = polygonClipping.difference([p], [face])[0];
-        return res ? res[0] : p;
-      });
-
-      paths.push(face);
-    });
+  for (let stack of stacks) {
+    boxes.push(stack);
   }
+
+  boxes = boxes
+    // .sort((a, b) => a.location[2] - b.location[2])
+    // .sort((a, b) => a.location[1] - b.location[1])
+    // .sort((a, b) => a.location[0] - b.location[0])
+    .forEach((box) => {
+      const cuboid = renderer.cuboidGeometry(box);
+      const cuboidClip = polygonClipping.union(...cuboid.map((v) => [v]))[0];
+
+      paths = paths.reduce((acc, p) => {
+        const res = polygonClipping.difference([p], cuboidClip).flat(1);
+        return p.length > 0 ? acc.concat(res) : acc;
+      }, []);
+
+      paths.push(...cuboid);
+    });
 
   const lines = paths;
 
@@ -108,74 +78,53 @@ const sketch = (props) => {
 
 canvasSketch(sketch, settings);
 
-const inRange = (v, [low, high]) => v >= low && v <= high;
+function* makeStacks() {
+  const unit = 0.01;
+  let x = -100;
+  let y = -50;
+  let z = -60;
+  let size;
+  const gap = 3;
 
-function withinBounds({ size: [w, h], location: [x, y, z] }, bounds) {
-  return (
-    inRange(x - w, bounds[0]) &&
-    inRange(x + w, bounds[0]) &&
-    inRange(y - h, bounds[1]) &&
-    inRange(y + h, bounds[1]) &&
-    inRange(z - w, bounds[2]) &&
-    inRange(z + w, bounds[2])
-  );
-}
+  while (z < 80) {
+    x = -30;
+    let zSpan = 0;
 
-function intersects(a, b) {
-  return (
-    a[0][0] <= b[0][0] &&
-    a[0][1] >= b[0][1] &&
-    a[1][0] <= b[1][0] &&
-    a[1][1] >= b[1][1] &&
-    a[2][0] <= b[2][0] &&
-    a[2][1] >= b[2][1]
-  );
-}
+    size = [
+      Random.rangeFloor(1, 25),
+      Random.rangeFloor(10, 25),
+      Random.rangeFloor(1, 25),
+    ];
 
-function noCollisions(bbox, cuboids) {
-  return cuboids.reduce((res, c) => {
-    return res && !intersects(bbox, c);
-  }, true);
-}
+    while (x < 60) {
+      y = -50;
 
-const cuboids = [];
+      while (y < 50) {
+        const location = [x, y, z];
 
-function getCuboid() {
-  const bounds = [
-    [-0.3, 0.3],
-    [-0.2, 0.5],
-    [-0.3, 0.3],
-  ];
-  const [[x1, x2], [y1, y2], [z1, z2]] = bounds;
+        const stackSize = [
+          Random.rangeFloor(5, size[0]),
+          size[1],
+          Random.rangeFloor(5, size[2]),
+        ];
 
-  let size, location;
-  const isCube = Random.chance();
+        yield {
+          size: [
+            stackSize[0] + (size[0] - stackSize[0]) / 2,
+            stackSize[1] + (size[1] - stackSize[1]) / 2,
+            stackSize[2] + (size[2] - stackSize[2]) / 2,
+          ].map((v) => +(v * unit).toPrecision(2)),
+          location: location.map((v) => +(v * unit).toPrecision(2)),
+        };
 
-  // if (!isCube) {
-  //   const s = Random.range(0.05, 0.1);
-  //   size = [s, s];
-  //   location = [
-  //     Random.range(x1, x2),
-  //     Random.range(y1, y2),
-  //     Random.range(z1, z2),
-  //   ];
-  // } else {
-  size = [Random.range(0.05, 0.15), Random.range(0.25, 1)];
-  location = [Random.range(x1, x2), Random.range(y1, y2), Random.range(z1, z2)];
-  // }
-
-  const bbox = [
-    [location[0] - size[0], location[0] + size[0]],
-    [location[1] - size[1], location[1] + size[1]],
-    [location[2] - size[0], location[2] + size[0]],
-  ];
-
-  const cuboid =
-    withinBounds({ size, location }, bounds) && noCollisions(bbox, cuboids)
-      ? { size, location }
-      : getCuboid();
-
-  cuboids.push(bbox);
-
-  return cuboid;
+        zSpan = size[2] + gap > zSpan ? size[2] + gap : zSpan;
+        y = y + size[1] + gap;
+        size[1] = Random.rangeFloor(Math.abs(y), 15);
+      }
+      x = x + size[0] + gap;
+      size[0] = Random.rangeFloor(10, size[0]);
+    }
+    z = z + zSpan;
+    size[2] = Random.rangeFloor(10, size[2]);
+  }
 }

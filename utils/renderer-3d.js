@@ -1,5 +1,5 @@
-// const { point, line, drawShape } = require('./geometry');
 const { createPath } = require('canvas-sketch-util/penplot');
+const { createHatchLines, getBounds } = require('canvas-sketch-util/geometry');
 const { matrixMultiply } = require('./matrix');
 
 // prettier-ignore
@@ -10,30 +10,30 @@ const cubeEdges = [
 ];
 
 const faces = {
-  top: ([x, y, z], [w, h]) => [
-    [x - w, y, z - w],
-    [x + w, y, z - w],
-    [x + w, y, z + w],
-    [x - w, y, z + w],
+  top: ([x, y, z], [w, d]) => [
+    [x, y, z],
+    [x + w, y, z],
+    [x + w, y, z + d],
+    [x, y, z + d],
   ],
   left: ([x, y, z], [w, h]) => [
-    [x - w, y - h, z],
-    [x + w, y - h, z],
+    [x, y + h, z],
     [x + w, y + h, z],
-    [x - w, y + h, z],
+    [x + w, y, z],
+    [x, y, z],
   ],
-  right: ([x, y, z], [w, h]) => [
-    [x, y - h, z - w],
-    [x, y + h, z - w],
-    [x, y + h, z + w],
-    [x, y - h, z + w],
+  right: ([x, y, z], [d, h]) => [
+    [x, y + h, z],
+    [x, y, z],
+    [x, y, z + d],
+    [x, y + h, z + d],
   ],
 };
 
 class Renderer3D {
   constructor(
     d,
-    angles = { x: Math.atan(1 / 2 ** 0.5), y: Math.PI / 4, z: 0 },
+    angles = { x: Math.atan(1 / 2 ** 0.5), y: (-3 * Math.PI) / 4, z: 0 },
     scale,
     origin,
   ) {
@@ -87,14 +87,14 @@ class Renderer3D {
 
     // prettier-ignore
     const projection = [
-      [this.d, 0, 0],
+      [-this.d, 0, 0],
       [0, this.d, 0],
     ];
 
     const [x, y] = matrixMultiply(projection, rotated).map(
       (v) => v * this.scale,
     );
-    return [this.origin[0] / 2 + x, this.origin[1] / 2 + y];
+    return [this.origin[0] + x, this.origin[1] - y];
   }
 
   debug() {
@@ -145,22 +145,22 @@ class Renderer3D {
     return this.path(face, true);
   }
 
-  cuboidGeometry({ size: [w, h], location: [x, y, z] = [0, 0, 0] }) {
+  cuboidGeometry({ size: [w, h, d = w], location: [x, y, z] = [0, 0, 0] }) {
     const top = this.getFace({
       direction: 'top',
-      size: [w, h],
-      location: [x, y - h, z],
+      size: [w, d],
+      location: [x, y + h, z],
     }).map(this.convert3dTo2d);
 
     const left = this.getFace({
       direction: 'left',
       size: [w, h],
-      location: [x, y, z + w],
+      location: [x, y, z + d],
     }).map(this.convert3dTo2d);
 
     const right = this.getFace({
       direction: 'right',
-      size: [w, h],
+      size: [d, h],
       location: [x + w, y, z],
     }).map(this.convert3dTo2d);
 
@@ -168,29 +168,12 @@ class Renderer3D {
   }
 
   cuboid({ size, location }) {
-    const top = this.getFace({
-      direction: 'top',
-      size: [w, h],
-      location: [x, y - h, z],
-    });
-
-    const left = this.getFace({
-      direction: 'left',
-      size: [w, h],
-      location: [x, y, z + w],
-    });
-
-    const right = this.getFace({
-      direction: 'right',
-      size: [w, h],
-      location: [x + w, y, z],
-    });
-
-    return this.shape([top, right, left], true);
+    const geometry = this.cuboidGeometry({ size, location });
+    return this.shape(geometry, true);
   }
 
   cube({ size, location = [0, 0, 0] }) {
-    return this.cuboid({ size: [size, size], location });
+    return this.cuboid({ size: [size, size, size], location });
   }
 
   shape(shape, closed = false) {
