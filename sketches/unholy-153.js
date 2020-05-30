@@ -14,7 +14,7 @@ const settings = {
   // pixelsPerInch: 300,
   scaleToView: true,
   animate: true,
-  duration: 5,
+  duration: 10,
   context: 'webgl',
   // units: 'cm',
   // prefix: '8.5x5.5-',
@@ -47,22 +47,22 @@ const sketch = ({ context }) => {
   // const gridHelper = new THREE.GridHelper(50, 50);
   // scene.add(gridHelper);
 
-  const ambLight = new THREE.AmbientLight(0xffffff, 0.2);
+  const ambLight = new THREE.AmbientLight(0xffffff, 0.25);
   scene.add(ambLight);
 
-  const light1 = new THREE.PointLight('#B8C7C4', 0.5);
-  light1.position.set(0, 0, -10);
+  const light1 = new THREE.SpotLight('#B8C7C4', 0.5);
+  light1.position.set(8, 10, -8);
   light1.castShadow = true;
   //Set up shadow properties for the light
-  light1.shadow.mapSize.width = 512; // default
-  light1.shadow.mapSize.height = 512; // default
+  light1.shadow.mapSize.width = 512 * 4; // default
+  light1.shadow.mapSize.height = 512 * 4; // default
   light1.shadow.camera.near = 0.01; // default
   light1.shadow.camera.far = 200; // default
   scene.add(light1);
   scene.add(new THREE.PointLightHelper(light1, 0.5, '#444'));
 
-  const light2 = new THREE.PointLight('#B8C7C4', 0.75);
-  light2.position.set(5, 10, 0);
+  const light2 = new THREE.PointLight('#B8C7C4', 0.5);
+  light2.position.set(8, 15, 1.3);
   light2.castShadow = true;
   //Set up shadow properties for the light
   light2.shadow.mapSize.width = 512 * 4; // default
@@ -86,21 +86,14 @@ const sketch = ({ context }) => {
   plane.receiveShadow = true;
   scene.add(plane);
 
-  // // Setup a geometry
-  // const geometry = new THREE.ConeGeometry(1, 2, 4, 1);
-  // geometry.rotateY(Math.PI / 4);
-
   // Setup a material
   // MeshPhysicalMaterial
+  // view-source:https://threejs.org/examples/webgl_materials_modified
   const material = new THREE.MeshStandardMaterial({
-    map: null,
     color: '#FFB511',
     emissive: '#EE7F4B',
     metalness: 0,
     roughness: 1,
-    clearcoat: 1,
-    clearcoatRoughness: 1,
-    reflectivity: 1,
     side: THREE.DoubleSide,
     flatShading: true,
   });
@@ -134,9 +127,18 @@ const sketch = ({ context }) => {
     xOff += baseSize * 0.97;
   }
 
-  // sculpture.rotateY(Math.PI / 4);
-  // sculpture.rotateX(-Math.PI / 2.5);
-  // sculpture.rotateZ(Math.PI / 16);
+  const convergence = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5),
+    new THREE.MeshStandardMaterial({
+      color: '#FF4C65',
+      metalness: 0,
+      roughness: 1,
+      flatShading: true,
+    }),
+  );
+  convergence.position.y = 1;
+
+  sculpture.add(convergence);
 
   // Centre the sculpture
   new THREE.Box3()
@@ -145,6 +147,14 @@ const sketch = ({ context }) => {
     .multiplyScalar(-1);
 
   scene.add(sculpture);
+
+  convergence.translateX(-sculpture.position.x);
+  convergence.translateZ(-sculpture.position.z);
+  // convergence.translateY(1);
+  const origin = convergence.position.clone();
+  // const offset = sculpture.position.clone().multiplyScalar(0.5);
+
+  distortPyramids(pyramids, convergence, origin);
 
   // draw each frame
   return {
@@ -161,28 +171,7 @@ const sketch = ({ context }) => {
     // Update & render your scene here
     render({ playhead }) {
       controls.update();
-      const l = pyramids.length;
-
-      pyramids.forEach((pyramid, pix) => {
-        pyramid.geometry.vertices.forEach((vertex, idx) => {
-          if (idx === 0) {
-            const theta =
-              Random.noise3D(
-                (vertex.x + pyramid.geometry.radius) / 10,
-                (vertex.y + pyramid.geometry.radius) / 10,
-                (0.5 * (pix + 1) * Math.sin(playhead * 2 * Math.PI)) / l,
-                // ((pix + 1) * time) / l,
-              ) *
-              2 *
-              Math.PI;
-
-            vertex.x = pyramid.geometry.radius * Math.sin(theta);
-            vertex.z = pyramid.geometry.radius * Math.cos(theta);
-          }
-        });
-        pyramid.geometry.verticesNeedUpdate = true;
-      });
-
+      distortPyramids(pyramids, convergence, origin, playhead);
       renderer.render(scene, camera);
     },
     // Dispose of events & renderer for cleaner hot-reloading
@@ -209,7 +198,7 @@ canvasSketch(sketch, settings);
  *
  *  Also, how do I combine an animation shader with material?
  *
- * How do shadows work?
+ * ✅ How do shadows work?
  */
 
 function pyramidGeometry({ s = 1, h = 2 }) {
@@ -239,4 +228,52 @@ function pyramidGeometry({ s = 1, h = 2 }) {
   geometry.radius = (s * 2 ** 0.5) / 2;
 
   return geometry;
+}
+
+function vecField(x, y) {
+  return [y - x, -x - y];
+  const l = Math.hypot(x, y) ** 0.5;
+  const f = Math.sin(2 * x + 2 * y);
+  const r = (x ** 2 + y ** 2) / (2 * x);
+
+  // return [x, Math.sin(mapRange(x, 0, width, 0, 3 * Math.PI)) * y];
+  // return [y, x ** 2 + y ** 2 * x - 3 * y];
+  // return [x - y - x * (x ** 2 + y ** 2), x + y - y * (x ** 2 + y ** 2)];
+  // return [x + 2 * y, 3 * x];
+  // return [Math.cos(x) * y, Math.sin(x) * y];
+  // return [x, (y ** 2 - x ** 2) / (2 * x * y)];
+  // return [Math.cos(f), Math.sin(f)];
+  // return [Math.sin(y), Math.sin(x)];
+  // return [-y, x];
+  return [Math.exp(y), y];
+  return [x, l];
+  return [x / x, y + Math.sin(y)];
+  return [y, Math.cos(Math.log(l * Math.min(Math.cos(l))))];
+  return [Math.tan(y - x), Math.tan(-x - y)];
+}
+
+// let convergence = [5, 5];
+
+function distortPyramids(pyramids, convergence, origin, playhead = 0) {
+  const c = convergence.position;
+  const t = Math.sin(playhead * 2 * Math.PI);
+
+  const xOff = Random.noise2D(c.x / 100, t, 1, 0.5) * 2 * Math.PI;
+  const zOff = Random.noise2D(c.z / 100, t + 0.5, 1, 0.5) * 2 * Math.PI;
+
+  c.x = origin.x + 5 * Math.cos(xOff);
+  c.z = origin.z + 5 * Math.sin(zOff);
+
+  pyramids.forEach((pyramid) => {
+    pyramid.geometry.vertices.forEach((vertex, idx) => {
+      if (idx === 0) {
+        const h = vecField(pyramid.position.x - c.x, pyramid.position.z - c.z);
+        const theta = Math.atan2(h[1], h[0]);
+
+        vertex.x = pyramid.geometry.radius * Math.cos(theta);
+        vertex.z = pyramid.geometry.radius * Math.sin(theta);
+      }
+    });
+    pyramid.geometry.verticesNeedUpdate = true;
+  });
 }
