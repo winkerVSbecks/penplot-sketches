@@ -4,6 +4,7 @@ global.THREE = require('three');
 
 // Include any additional ThreeJS examples below
 require('three/examples/js/controls/OrbitControls');
+require('three/examples/js/effects/OutlineEffect');
 
 const canvasSketch = require('canvas-sketch');
 
@@ -25,9 +26,15 @@ const sketch = ({ context }) => {
   const renderer = new THREE.WebGLRenderer({
     canvas: context.canvas,
   });
+  const effect = new THREE.OutlineEffect(renderer, {
+    defaultThickness: 0.006,
+    defaultColor: [0.2, 0.2, 0.2],
+    defaultAlpha: 0.8,
+    defaultKeepAlive: true,
+  });
 
   // WebGL background color
-  renderer.setClearColor('#f2f2f2', 1);
+  renderer.setClearColor('#fefefe', 1);
 
   // Setup a camera
   const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 200);
@@ -50,39 +57,38 @@ const sketch = ({ context }) => {
   const ambLight = new THREE.AmbientLight(0xffffff, 0.25);
   scene.add(ambLight);
 
-  const light1 = new THREE.SpotLight('#B8C7C4', 0.5);
+  const light1 = new THREE.SpotLight('#fff', 0.5);
   light1.position.set(8, 10, -8);
   light1.castShadow = true;
-  //Set up shadow properties for the light
-  light1.shadow.mapSize.width = 512 * 4; // default
-  light1.shadow.mapSize.height = 512 * 4; // default
-  light1.shadow.camera.near = 0.01; // default
-  light1.shadow.camera.far = 200; // default
+  light1.shadow.mapSize.width = 512 * 4;
+  light1.shadow.mapSize.height = 512 * 4;
+  light1.shadow.camera.near = 0.01;
+  light1.shadow.camera.far = 200;
   scene.add(light1);
   scene.add(new THREE.PointLightHelper(light1, 0.5, '#444'));
 
-  const light2 = new THREE.PointLight('#B8C7C4', 0.5);
+  const light2 = new THREE.PointLight('#fff', 0.5);
   light2.position.set(8, 15, 1.3);
   light2.castShadow = true;
-  //Set up shadow properties for the light
-  light2.shadow.mapSize.width = 512 * 4; // default
-  light2.shadow.mapSize.height = 512 * 4; // default
-  light2.shadow.camera.near = 0.01; // default
-  light2.shadow.camera.far = 200; // default
+  light2.shadow.mapSize.width = 512 * 4;
+  light2.shadow.mapSize.height = 512 * 4;
+  light2.shadow.camera.near = 0.01;
+  light2.shadow.camera.far = 200;
   scene.add(light2);
   scene.add(new THREE.PointLightHelper(light2, 0.75, '#444'));
 
-  const planeGeometry = new THREE.PlaneBufferGeometry(25, 25, 32, 32);
+  const planeGeometry = new THREE.PlaneBufferGeometry(15, 15, 32, 32);
   const planeMaterial = new THREE.MeshStandardMaterial({
-    color: '0xfff',
+    color: '#B8C7C4',
+    emissive: '#B8C7C4',
+    metalness: 1,
+    roughness: 1,
     side: THREE.DoubleSide,
   });
   const plane = new THREE.Mesh(planeGeometry, planeMaterial);
   plane.rotateX(Math.PI / 2);
 
-  // plane.position.x = 0;
-  plane.position.y = -1.1;
-  // plane.position.z = 0;
+  plane.position.y = -1;
   plane.receiveShadow = true;
   scene.add(plane);
 
@@ -94,9 +100,13 @@ const sketch = ({ context }) => {
     emissive: '#EE7F4B',
     metalness: 0,
     roughness: 1,
-    side: THREE.DoubleSide,
+    // side: THREE.DoubleSide,
     flatShading: true,
   });
+
+  material.userData.outlineParameters = {
+    color: [238 / 255, 127 / 255, 75 / 255],
+  };
 
   let xOff = 0;
 
@@ -105,7 +115,7 @@ const sketch = ({ context }) => {
   const pyramids = [];
 
   // 11-36 in 26 steps, 28 for square
-  for (let count = 11; count <= 36; count++) {
+  for (let count = 11; count <= 28; count++) {
     const baseSize = 11 / count;
 
     for (let idx = 1; idx <= count; idx++) {
@@ -113,6 +123,7 @@ const sketch = ({ context }) => {
         s: baseSize,
         h: 2 * baseSize,
       });
+
       const pyramid = new THREE.Mesh(geometry, material);
       pyramid.castShadow = true;
       // pyramid.receiveShadow = true;
@@ -134,6 +145,7 @@ const sketch = ({ context }) => {
       metalness: 0,
       roughness: 1,
       flatShading: true,
+      visible: false,
     }),
   );
   convergence.position.y = 1;
@@ -147,6 +159,8 @@ const sketch = ({ context }) => {
     .multiplyScalar(-1);
 
   scene.add(sculpture);
+
+  sculpture.position.y = -0.9;
 
   convergence.translateX(-sculpture.position.x);
   convergence.translateZ(-sculpture.position.z);
@@ -172,7 +186,7 @@ const sketch = ({ context }) => {
     render({ playhead }) {
       controls.update();
       distortPyramids(pyramids, convergence, origin, playhead);
-      renderer.render(scene, camera);
+      effect.render(scene, camera);
     },
     // Dispose of events & renderer for cleaner hot-reloading
     unload() {
@@ -213,10 +227,10 @@ function pyramidGeometry({ s = 1, h = 2 }) {
   );
 
   geometry.faces.push(
-    new THREE.Face3(0, 1, 2),
-    new THREE.Face3(0, 2, 3),
-    new THREE.Face3(0, 3, 4),
-    new THREE.Face3(0, 4, 1),
+    new THREE.Face3(2, 1, 0),
+    new THREE.Face3(3, 2, 0),
+    new THREE.Face3(4, 3, 0),
+    new THREE.Face3(1, 4, 0),
     new THREE.Face3(1, 2, 3),
     new THREE.Face3(1, 3, 4),
   );
