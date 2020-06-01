@@ -1,16 +1,18 @@
 // Ensure ThreeJS is in global scope for the 'examples/'
 const Random = require('canvas-sketch-util/random');
+const Color = require('canvas-sketch-util/Color');
+const risoColors = require('riso-colors').map((h) => h.hex);
+const paperColors = require('paper-colors').map((h) => h.hex);
 global.THREE = require('three');
 
 // Include any additional ThreeJS examples below
 require('three/examples/js/controls/OrbitControls');
-require('three/examples/js/effects/OutlineEffect');
 
 const canvasSketch = require('canvas-sketch');
 
 const settings = {
   // dimensions: [21.59, 13.97],
-  dimensions: [800, 800],
+  dimensions: [1600, 1600],
   orientation: 'landscape',
   // pixelsPerInch: 300,
   scaleToView: true,
@@ -22,23 +24,25 @@ const settings = {
 };
 
 const sketch = ({ context }) => {
+  const background = Random.pick(paperColors); // #222
+  const minContrast = 3;
+  // const fogColor = palette.shift(); // 0x222222
+  const inkColors = risoColors.filter(
+    (color) => Color.contrastRatio(background, color) >= minContrast,
+  );
+  const foreground = Random.pick(inkColors); // #00AA93
+
   // Create a renderer
   const renderer = new THREE.WebGLRenderer({
     canvas: context.canvas,
   });
-  const effect = new THREE.OutlineEffect(renderer, {
-    defaultThickness: 0.01,
-    defaultColor: [255 / 255, 181 / 255, 17 / 255], // [0.2, 0.2, 0.2],
-    defaultAlpha: 0.8,
-    defaultKeepAlive: true,
-  });
 
   // WebGL background color
-  renderer.setClearColor('#222', 1);
+  renderer.setClearColor(background, 1);
 
   // Setup a camera
   const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 200);
-  camera.position.set(-15, 8, -15);
+  camera.position.set(15, 8, 15);
   camera.lookAt(new THREE.Vector3());
 
   // Setup camera controller
@@ -46,6 +50,7 @@ const sketch = ({ context }) => {
 
   // Setup your scene
   const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(background, 0.05);
 
   // Debug helpers
   // const axesHelper = new THREE.AxesHelper(5);
@@ -70,7 +75,7 @@ const sketch = ({ context }) => {
         h: 2 * baseSize,
       });
 
-      const pyramid = makeMesh2(geometry, '#222', '#00AA93');
+      const pyramid = makeMesh2(geometry, background, foreground);
 
       pyramid.position.x = xOff;
       pyramid.position.z = idx * baseSize;
@@ -101,17 +106,18 @@ const sketch = ({ context }) => {
 
   sculpture.position.y = -0.9;
 
-  const planeGeometry = new THREE.PlaneGeometry(
+  const planeGeometry = new THREE.BoxGeometry(
     Math.abs(sculptureSize.max.x - sculptureSize.min.x),
     Math.abs(sculptureSize.max.z - sculptureSize.min.z),
+    0.5,
     1,
     1,
   );
-  const plane = makeMesh2(planeGeometry, '#00AA93', '#00AA93'); // new THREE.Mesh(planeGeometry, planeMaterial);
+  const plane = makeMesh2(planeGeometry, foreground, background); // new THREE.Mesh(planeGeometry, planeMaterial);
   plane.rotateX(Math.PI / 2);
   plane.position.x = -sculptureSize.min.x / 2;
   plane.position.z = -sculptureSize.min.z / 2;
-  plane.position.y = -0.5;
+  plane.position.y = -0.75;
   scene.add(plane);
 
   convergence.translateX(-sculpture.position.x);
@@ -131,7 +137,6 @@ const sketch = ({ context }) => {
     render({ playhead }) {
       controls.update();
       distortPyramids(pyramids, convergence, origin, playhead);
-      // effect.render(scene, camera);
       renderer.render(scene, camera);
     },
     // Dispose of events & renderer for cleaner hot-reloading
@@ -232,7 +237,7 @@ function distortPyramids(pyramids, convergence, origin, playhead = 0) {
 
 function makeMesh(geometry) {
   const solidMaterial = new THREE.MeshBasicMaterial({
-    color: '#222',
+    color: background,
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
@@ -255,7 +260,7 @@ function makeMesh(geometry) {
   return mesh;
 }
 
-function makeMesh2(geometry, fill = '#222', stroke = '#FFB511') {
+function makeMesh2(geometry, fill = background, stroke = '#FFB511') {
   const solidMaterial = new THREE.MeshBasicMaterial({
     color: fill,
     polygonOffset: true,

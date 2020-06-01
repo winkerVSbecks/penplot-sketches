@@ -28,9 +28,11 @@
     "ml5": "^0.4.3",
     "ndjson-cli": "^0.3.1",
     "pack-spheres": "^1.0.4",
+    "paper-colors": "^1.0.0",
     "poisson-disk-sampling": "^1.0.6",
     "polygon-clipping": "^0.14.3",
     "polyhedra": "^1.0.0",
+    "riso-colors": "^1.0.1",
     "three": "^0.116.1"
   }
 }
