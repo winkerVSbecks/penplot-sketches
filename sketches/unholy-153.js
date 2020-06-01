@@ -27,14 +27,14 @@ const sketch = ({ context }) => {
     canvas: context.canvas,
   });
   const effect = new THREE.OutlineEffect(renderer, {
-    defaultThickness: 0.006,
-    defaultColor: [0.2, 0.2, 0.2],
+    defaultThickness: 0.01,
+    defaultColor: [255 / 255, 181 / 255, 17 / 255], // [0.2, 0.2, 0.2],
     defaultAlpha: 0.8,
     defaultKeepAlive: true,
   });
 
   // WebGL background color
-  renderer.setClearColor('#fefefe', 1);
+  renderer.setClearColor('#222', 1);
 
   // Setup a camera
   const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 200);
@@ -51,62 +51,8 @@ const sketch = ({ context }) => {
   // const axesHelper = new THREE.AxesHelper(5);
   // scene.add(axesHelper);
 
-  // const gridHelper = new THREE.GridHelper(50, 50);
-  // scene.add(gridHelper);
-
   const ambLight = new THREE.AmbientLight(0xffffff, 0.25);
   scene.add(ambLight);
-
-  const light1 = new THREE.SpotLight('#fff', 0.5);
-  light1.position.set(8, 10, -8);
-  light1.castShadow = true;
-  light1.shadow.mapSize.width = 512 * 4;
-  light1.shadow.mapSize.height = 512 * 4;
-  light1.shadow.camera.near = 0.01;
-  light1.shadow.camera.far = 200;
-  scene.add(light1);
-  scene.add(new THREE.PointLightHelper(light1, 0.5, '#444'));
-
-  const light2 = new THREE.PointLight('#fff', 0.5);
-  light2.position.set(8, 15, 1.3);
-  light2.castShadow = true;
-  light2.shadow.mapSize.width = 512 * 4;
-  light2.shadow.mapSize.height = 512 * 4;
-  light2.shadow.camera.near = 0.01;
-  light2.shadow.camera.far = 200;
-  scene.add(light2);
-  scene.add(new THREE.PointLightHelper(light2, 0.75, '#444'));
-
-  const planeGeometry = new THREE.PlaneBufferGeometry(15, 15, 32, 32);
-  const planeMaterial = new THREE.MeshStandardMaterial({
-    color: '#B8C7C4',
-    emissive: '#B8C7C4',
-    metalness: 1,
-    roughness: 1,
-    side: THREE.DoubleSide,
-  });
-  const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-  plane.rotateX(Math.PI / 2);
-
-  plane.position.y = -1;
-  plane.receiveShadow = true;
-  scene.add(plane);
-
-  // Setup a material
-  // MeshPhysicalMaterial
-  // view-source:https://threejs.org/examples/webgl_materials_modified
-  const material = new THREE.MeshStandardMaterial({
-    color: '#FFB511',
-    emissive: '#EE7F4B',
-    metalness: 0,
-    roughness: 1,
-    // side: THREE.DoubleSide,
-    flatShading: true,
-  });
-
-  material.userData.outlineParameters = {
-    color: [238 / 255, 127 / 255, 75 / 255],
-  };
 
   let xOff = 0;
 
@@ -118,15 +64,13 @@ const sketch = ({ context }) => {
   for (let count = 11; count <= 28; count++) {
     const baseSize = 11 / count;
 
-    for (let idx = 1; idx <= count; idx++) {
+    for (let idx = 0; idx < count; idx++) {
       const geometry = pyramidGeometry({
         s: baseSize,
         h: 2 * baseSize,
       });
 
-      const pyramid = new THREE.Mesh(geometry, material);
-      pyramid.castShadow = true;
-      // pyramid.receiveShadow = true;
+      const pyramid = makeMesh2(geometry, '#222', '#00AA93');
 
       pyramid.position.x = xOff;
       pyramid.position.z = idx * baseSize;
@@ -135,16 +79,13 @@ const sketch = ({ context }) => {
       sculpture.add(pyramid);
       pyramids.push(pyramid);
     }
-    xOff += baseSize * 0.97;
+    xOff += baseSize;
   }
 
   const convergence = new THREE.Mesh(
     new THREE.SphereGeometry(0.5),
     new THREE.MeshStandardMaterial({
       color: '#FF4C65',
-      metalness: 0,
-      roughness: 1,
-      flatShading: true,
       visible: false,
     }),
   );
@@ -153,22 +94,29 @@ const sketch = ({ context }) => {
   sculpture.add(convergence);
 
   // Centre the sculpture
-  new THREE.Box3()
-    .setFromObject(sculpture)
-    .getCenter(sculpture.position)
-    .multiplyScalar(-1);
+  const sculptureSize = new THREE.Box3().setFromObject(sculpture);
+  sculptureSize.getCenter(sculpture.position).multiplyScalar(-1);
 
   scene.add(sculpture);
 
   sculpture.position.y = -0.9;
 
+  const planeGeometry = new THREE.PlaneGeometry(
+    Math.abs(sculptureSize.max.x - sculptureSize.min.x),
+    Math.abs(sculptureSize.max.z - sculptureSize.min.z),
+    1,
+    1,
+  );
+  const plane = makeMesh2(planeGeometry, '#00AA93', '#00AA93'); // new THREE.Mesh(planeGeometry, planeMaterial);
+  plane.rotateX(Math.PI / 2);
+  plane.position.x = -sculptureSize.min.x / 2;
+  plane.position.z = -sculptureSize.min.z / 2;
+  plane.position.y = -0.5;
+  scene.add(plane);
+
   convergence.translateX(-sculpture.position.x);
   convergence.translateZ(-sculpture.position.z);
-  // convergence.translateY(1);
   const origin = convergence.position.clone();
-  // const offset = sculpture.position.clone().multiplyScalar(0.5);
-
-  distortPyramids(pyramids, convergence, origin);
 
   // draw each frame
   return {
@@ -176,9 +124,6 @@ const sketch = ({ context }) => {
     resize({ pixelRatio, viewportWidth, viewportHeight }) {
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(viewportWidth, viewportHeight, false);
-      // turn on shadows in the renderer
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFShadowMap;
       camera.aspect = viewportWidth / viewportHeight;
       camera.updateProjectionMatrix();
     },
@@ -186,7 +131,8 @@ const sketch = ({ context }) => {
     render({ playhead }) {
       controls.update();
       distortPyramids(pyramids, convergence, origin, playhead);
-      effect.render(scene, camera);
+      // effect.render(scene, camera);
+      renderer.render(scene, camera);
     },
     // Dispose of events & renderer for cleaner hot-reloading
     unload() {
@@ -198,32 +144,15 @@ const sketch = ({ context }) => {
 
 canvasSketch(sketch, settings);
 
-/**
- * What is up with `pyramid.getWorldScale(origin)`? Just seems to change the dimensions
- * of the pyramid. But, why? Also, WTF is up with the bounding box giving the wrong
- * size (circular vs square base).
- *
- * Sharing geometry is better for performance.
- *  Can multiple pyramids use the same geometry but I animate them individually.
- *  Seems to not work. The movement ends up being exactly the same.
- *
- *  What if I animate with a shader? Would that work? Could I have one geometry but
- *  animate it differently for each instance.
- *
- *  Also, how do I combine an animation shader with material?
- *
- * ✅ How do shadows work?
- */
-
 function pyramidGeometry({ s = 1, h = 2 }) {
   const geometry = new THREE.Geometry();
 
   geometry.vertices.push(
-    new THREE.Vector3(0, h, 0),
-    new THREE.Vector3(-s / 2, 0, -s / 2),
-    new THREE.Vector3(s / 2, 0, -s / 2),
-    new THREE.Vector3(s / 2, 0, s / 2),
-    new THREE.Vector3(-s / 2, 0, s / 2),
+    new THREE.Vector3(s / 2, h, s / 2),
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(s, 0, 0),
+    new THREE.Vector3(s, 0, s),
+    new THREE.Vector3(0, 0, s),
   );
 
   geometry.faces.push(
@@ -266,8 +195,6 @@ function vecField(x, y) {
   return [Math.tan(y - x), Math.tan(-x - y)];
 }
 
-// let convergence = [5, 5];
-
 function distortPyramids(pyramids, convergence, origin, playhead = 0) {
   const c = convergence.position;
   const t = Math.sin(playhead * 2 * Math.PI);
@@ -279,6 +206,8 @@ function distortPyramids(pyramids, convergence, origin, playhead = 0) {
   c.z = origin.z + 5 * Math.sin(zOff);
 
   pyramids.forEach((pyramid) => {
+    let vertices = [];
+
     pyramid.geometry.vertices.forEach((vertex, idx) => {
       if (idx === 0) {
         const h = vecField(pyramid.position.x - c.x, pyramid.position.z - c.z);
@@ -287,7 +216,102 @@ function distortPyramids(pyramids, convergence, origin, playhead = 0) {
         vertex.x = pyramid.geometry.radius * Math.cos(theta);
         vertex.z = pyramid.geometry.radius * Math.sin(theta);
       }
+
+      vertices.push(vertex.x, vertex.y, vertex.z);
     });
+
     pyramid.geometry.verticesNeedUpdate = true;
+    pyramid.children[0].geometry.dispose();
+    pyramid.children[0].geometry = new THREE.EdgesGeometry(pyramid.geometry);
+    // pyramid.children[0].geometry.setAttribute(
+    //   'position',
+    //   new THREE.Float32BufferAttribute(vertices, 3),
+    // );
   });
+}
+
+function makeMesh(geometry) {
+  const solidMaterial = new THREE.MeshBasicMaterial({
+    color: '#222',
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  });
+  const mesh = new THREE.Mesh(geometry, solidMaterial);
+
+  // const wireframeGeometry = new THREE.WireframeGeometry(mesh.geometry);
+  const wireframeMaterial = new THREE.MeshBasicMaterial({
+    color: '#FFB511',
+    wireframe: true,
+    wireframeLinewidth: 4,
+  });
+  // const wireframeMaterial = new THREE.LineBasicMaterial({
+  //   color: '#FFB511',
+  //   linewidth: 2,
+  // });
+  const wireframe = new THREE.Mesh(mesh.geometry, wireframeMaterial);
+  mesh.add(wireframe);
+
+  return mesh;
+}
+
+function makeMesh2(geometry, fill = '#222', stroke = '#FFB511') {
+  const solidMaterial = new THREE.MeshBasicMaterial({
+    color: fill,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geometry, solidMaterial);
+
+  const wireframeGeometry = new THREE.EdgesGeometry(mesh.geometry);
+  const wireframeMaterial = new THREE.LineBasicMaterial({
+    color: stroke,
+    linewidth: 2,
+    side: THREE.DoubleSide,
+  });
+  const wireframe = new THREE.LineSegments(
+    wireframeGeometry,
+    wireframeMaterial,
+  );
+  mesh.add(wireframe);
+
+  return mesh;
+}
+
+const outlineMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    thickness: {
+      value: 3,
+    },
+  },
+  extensions: {
+    derivatives: true,
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main()	{
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    varying vec2 vUv;
+    uniform float thickness;
+
+    float edgeFactor(vec2 p){
+    	vec2 grid = abs(fract(p - 0.5) - 0.5) / fwidth(p) / thickness;
+  		return min(grid.x, grid.y);
+    }
+
+    void main() {
+      float a = edgeFactor(vUv);
+      vec3 c = mix(vec3(1), vec3(0), a);
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+});
+
+function makeMesh3(geometry) {
+  const mesh = new THREE.Mesh(geometry, outlineMaterial);
+  return mesh;
 }
