@@ -7,6 +7,8 @@ global.THREE = require('three');
 
 // Include any additional ThreeJS examples below
 require('three/examples/js/controls/OrbitControls');
+require('three/examples/js/renderers/Projector');
+require('three/examples/js/renderers/SVGRenderer');
 
 const canvasSketch = require('canvas-sketch');
 
@@ -16,14 +18,14 @@ const settings = {
   orientation: 'landscape',
   // pixelsPerInch: 300,
   scaleToView: true,
-  animate: true,
-  duration: 10,
   context: 'webgl',
   // units: 'cm',
   // prefix: '8.5x5.5-',
 };
 
-const sketch = ({ context, width, height }) => {
+const sketch = ({ context, width, height, canvas }) => {
+  canvas ? canvas.remove() : null;
+
   const background = Random.pick(paperColors); // #222
   const minContrast = 3;
   // const fogColor = palette.shift(); // 0x222222
@@ -33,16 +35,16 @@ const sketch = ({ context, width, height }) => {
   const foreground = Random.pick(inkColors); // #00AA93
 
   // Create a renderer
-  const renderer = new THREE.WebGLRenderer({
-    canvas: context.canvas,
-  });
+  const renderer = new THREE.SVGRenderer();
+  renderer.setSize(width, height);
+  document.body.appendChild(renderer.domElement);
 
   // WebGL background color
   renderer.setClearColor(background, 1);
 
   // Setup a camera
   const camera = new THREE.PerspectiveCamera(50, width / height, 0.01, 200);
-  camera.position.set(15, 8, 15);
+  camera.position.set(12, 8, 12);
   camera.lookAt(new THREE.Vector3());
 
   // Setup camera controller
@@ -50,7 +52,7 @@ const sketch = ({ context, width, height }) => {
 
   // Setup your scene
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(background, 0.05);
+  // scene.fog = new THREE.FogExp2(background, 0.05);
 
   // Debug helpers
   // const axesHelper = new THREE.AxesHelper(5);
@@ -95,6 +97,8 @@ const sketch = ({ context, width, height }) => {
     }),
   );
   convergence.position.y = 1;
+  convergence.position.x = 1;
+  convergence.position.z = 1;
 
   sculpture.add(convergence);
 
@@ -118,11 +122,13 @@ const sketch = ({ context, width, height }) => {
   plane.position.x = -sculptureSize.min.x / 2;
   plane.position.z = -sculptureSize.min.z / 2;
   plane.position.y = -0.75;
-  scene.add(plane);
+  // scene.add(plane);
 
   convergence.translateX(-sculpture.position.x);
   convergence.translateZ(-sculpture.position.z);
   const origin = convergence.position.clone();
+
+  distortPyramids(pyramids, convergence, origin, 0);
 
   // draw each frame
   return {
@@ -136,7 +142,6 @@ const sketch = ({ context, width, height }) => {
     // Update & render your scene here
     render({ playhead }) {
       controls.update();
-      distortPyramids(pyramids, convergence, origin, playhead);
       renderer.render(scene, camera);
     },
     // Dispose of events & renderer for cleaner hot-reloading
@@ -169,6 +174,8 @@ function pyramidGeometry({ s = 1, h = 2 }) {
     new THREE.Face3(1, 3, 4),
   );
 
+  geometry.add;
+
   geometry.computeVertexNormals();
 
   geometry.radius = (s * 2 ** 0.5) / 2;
@@ -200,13 +207,6 @@ function vecField(x, y) {
 
 function distortPyramids(pyramids, convergence, origin, playhead = 0) {
   const c = convergence.position;
-  const t = Math.sin(playhead * 2 * Math.PI);
-
-  const xOff = Random.noise2D(c.x / 100, t, 1, 0.5) * 2 * Math.PI;
-  const zOff = Random.noise2D(c.z / 100, t + 0.5, 1, 0.5) * 2 * Math.PI;
-
-  c.x = origin.x + 5 * Math.cos(xOff);
-  c.z = origin.z + 5 * Math.sin(zOff);
 
   pyramids.forEach((pyramid) => {
     let vertices = [];
@@ -226,10 +226,6 @@ function distortPyramids(pyramids, convergence, origin, playhead = 0) {
     pyramid.geometry.verticesNeedUpdate = true;
     pyramid.children[0].geometry.dispose();
     pyramid.children[0].geometry = new THREE.EdgesGeometry(pyramid.geometry);
-    // pyramid.children[0].geometry.setAttribute(
-    //   'position',
-    //   new THREE.Float32BufferAttribute(vertices, 3),
-    // );
   });
 }
 
@@ -264,7 +260,7 @@ function makeMesh2(geometry, fill = background, stroke = '#FFB511') {
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
-    side: THREE.DoubleSide,
+    // side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(geometry, solidMaterial);
 
@@ -280,41 +276,5 @@ function makeMesh2(geometry, fill = background, stroke = '#FFB511') {
   );
   mesh.add(wireframe);
 
-  return mesh;
-}
-
-const outlineMaterial = new THREE.ShaderMaterial({
-  uniforms: {
-    thickness: {
-      value: 3,
-    },
-  },
-  extensions: {
-    derivatives: true,
-  },
-  vertexShader: /* glsl */ `
-    varying vec2 vUv;
-    void main()	{
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }`,
-  fragmentShader: /* glsl */ `
-    varying vec2 vUv;
-    uniform float thickness;
-
-    float edgeFactor(vec2 p){
-    	vec2 grid = abs(fract(p - 0.5) - 0.5) / fwidth(p) / thickness;
-  		return min(grid.x, grid.y);
-    }
-
-    void main() {
-      float a = edgeFactor(vUv);
-      vec3 c = mix(vec3(1), vec3(0), a);
-      gl_FragColor = vec4(c, 1.0);
-    }`,
-});
-
-function makeMesh3(geometry) {
-  const mesh = new THREE.Mesh(geometry, outlineMaterial);
   return mesh;
 }

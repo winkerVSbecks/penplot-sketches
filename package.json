@@ -33,6 +33,7 @@
     "polygon-clipping": "^0.14.3",
     "polyhedra": "^1.0.0",
     "riso-colors": "^1.0.1",
-    "three": "^0.116.1"
+    "three": "^0.116.1",
+    "three.meshline": "^1.2.0"
   }
 }

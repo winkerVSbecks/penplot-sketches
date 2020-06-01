@@ -3,6 +3,7 @@ const Random = require('canvas-sketch-util/random');
 const Color = require('canvas-sketch-util/Color');
 const risoColors = require('riso-colors').map((h) => h.hex);
 const paperColors = require('paper-colors').map((h) => h.hex);
+const { MeshLine, MeshLineMaterial } = require('three.meshline');
 global.THREE = require('three');
 
 // Include any additional ThreeJS examples below
@@ -24,13 +25,12 @@ const settings = {
 };
 
 const sketch = ({ context, width, height }) => {
-  const background = Random.pick(paperColors); // #222
+  const background = Random.pick(paperColors);
   const minContrast = 3;
-  // const fogColor = palette.shift(); // 0x222222
   const inkColors = risoColors.filter(
     (color) => Color.contrastRatio(background, color) >= minContrast,
   );
-  const foreground = Random.pick(inkColors); // #00AA93
+  const foreground = Random.pick(inkColors);
 
   // Create a renderer
   const renderer = new THREE.WebGLRenderer({
@@ -75,7 +75,7 @@ const sketch = ({ context, width, height }) => {
         h: 2 * baseSize,
       });
 
-      const pyramid = makeMesh2(geometry, background, foreground);
+      const pyramid = makeMesh(geometry, background, foreground);
 
       pyramid.position.x = xOff;
       pyramid.position.z = idx * baseSize;
@@ -97,6 +97,8 @@ const sketch = ({ context, width, height }) => {
   convergence.position.y = 1;
 
   sculpture.add(convergence);
+
+  sculpture.scale.setScalar(1.2);
 
   // Centre the sculpture
   const sculptureSize = new THREE.Box3().setFromObject(sculpture);
@@ -124,22 +126,18 @@ const sketch = ({ context, width, height }) => {
   convergence.translateZ(-sculpture.position.z);
   const origin = convergence.position.clone();
 
-  // draw each frame
   return {
-    // Handle resize events here
     resize({ pixelRatio, viewportWidth, viewportHeight }) {
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(viewportWidth, viewportHeight, false);
       camera.aspect = viewportWidth / viewportHeight;
       camera.updateProjectionMatrix();
     },
-    // Update & render your scene here
     render({ playhead }) {
       controls.update();
       distortPyramids(pyramids, convergence, origin, playhead);
       renderer.render(scene, camera);
     },
-    // Dispose of events & renderer for cleaner hot-reloading
     unload() {
       controls.dispose();
       renderer.dispose();
@@ -210,55 +208,66 @@ function distortPyramids(pyramids, convergence, origin, playhead = 0) {
 
   pyramids.forEach((pyramid) => {
     let vertices = [];
+    const h = vecField(pyramid.position.x - c.x, pyramid.position.z - c.z);
+    const theta = Math.atan2(h[1], h[0]);
+    let newPosition;
 
     pyramid.geometry.vertices.forEach((vertex, idx) => {
       if (idx === 0) {
-        const h = vecField(pyramid.position.x - c.x, pyramid.position.z - c.z);
-        const theta = Math.atan2(h[1], h[0]);
-
         vertex.x = pyramid.geometry.radius * Math.cos(theta);
         vertex.z = pyramid.geometry.radius * Math.sin(theta);
+        newPosition = vertex.clone();
       }
-
       vertices.push(vertex.x, vertex.y, vertex.z);
     });
 
+    pyramid.children.forEach((child, idx) => {
+      if (idx > 0) {
+        const line = child.line;
+
+        var positions = line.attributes.position.array;
+        var l = positions.length;
+
+        positions[l - 6] = newPosition.x;
+        positions[l - 5] = newPosition.y;
+        positions[l - 4] = newPosition.z;
+        positions[l - 3] = newPosition.x;
+        positions[l - 2] = newPosition.y;
+        positions[l - 1] = newPosition.z;
+
+        line.attributes.position.needsUpdate = true;
+      }
+    });
+
     pyramid.geometry.verticesNeedUpdate = true;
-    pyramid.children[0].geometry.dispose();
-    pyramid.children[0].geometry = new THREE.EdgesGeometry(pyramid.geometry);
-    // pyramid.children[0].geometry.setAttribute(
-    //   'position',
-    //   new THREE.Float32BufferAttribute(vertices, 3),
-    // );
   });
 }
 
-function makeMesh(geometry) {
+function makeMesh(geometry, fill = background, stroke) {
   const solidMaterial = new THREE.MeshBasicMaterial({
-    color: background,
+    color: fill,
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
   });
   const mesh = new THREE.Mesh(geometry, solidMaterial);
 
-  // const wireframeGeometry = new THREE.WireframeGeometry(mesh.geometry);
-  const wireframeMaterial = new THREE.MeshBasicMaterial({
-    color: '#FFB511',
-    wireframe: true,
-    wireframeLinewidth: 4,
+  const strokeMaterial = new MeshLineMaterial({
+    color: stroke,
+    lineWidth: 0.06,
+    // opacity: 0.5,
+    // transparent: true,
+    sizeAttenuation: 1,
   });
-  // const wireframeMaterial = new THREE.LineBasicMaterial({
-  //   color: '#FFB511',
-  //   linewidth: 2,
-  // });
-  const wireframe = new THREE.Mesh(mesh.geometry, wireframeMaterial);
-  mesh.add(wireframe);
+
+  linesFrom(geometry, strokeMaterial).forEach((wireframe) => {
+    mesh.add(wireframe);
+  });
 
   return mesh;
 }
 
-function makeMesh2(geometry, fill = background, stroke = '#FFB511') {
+function makeMesh2(geometry, fill = background, stroke) {
   const solidMaterial = new THREE.MeshBasicMaterial({
     color: fill,
     polygonOffset: true,
@@ -283,38 +292,29 @@ function makeMesh2(geometry, fill = background, stroke = '#FFB511') {
   return mesh;
 }
 
-const outlineMaterial = new THREE.ShaderMaterial({
-  uniforms: {
-    thickness: {
-      value: 3,
-    },
-  },
-  extensions: {
-    derivatives: true,
-  },
-  vertexShader: /* glsl */ `
-    varying vec2 vUv;
-    void main()	{
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }`,
-  fragmentShader: /* glsl */ `
-    varying vec2 vUv;
-    uniform float thickness;
+function linesFrom(geometry, material) {
+  const vertices = geometry.vertices;
 
-    float edgeFactor(vec2 p){
-    	vec2 grid = abs(fract(p - 0.5) - 0.5) / fwidth(p) / thickness;
-  		return min(grid.x, grid.y);
-    }
+  const lines = [
+    [1, 2, 3, 4].map((i) => vertices[i]),
+    [1, 0].map((i) => vertices[i]),
+    [2, 0].map((i) => vertices[i]),
+    [3, 0].map((i) => vertices[i]),
+    [4, 0].map((i) => vertices[i]),
+  ];
 
-    void main() {
-      float a = edgeFactor(vUv);
-      vec3 c = mix(vec3(1), vec3(0), a);
-      gl_FragColor = vec4(c, 1.0);
-    }`,
-});
+  const wireframes = lines.map((pts) => {
+    const line = new MeshLine();
 
-function makeMesh3(geometry) {
-  const mesh = new THREE.Mesh(geometry, outlineMaterial);
-  return mesh;
+    const lineGeometry = new THREE.Geometry();
+    lineGeometry.vertices.push(...pts);
+    line.setGeometry(lineGeometry, (p) => Math.max(1 - p, 0.1));
+
+    const wireframe = new THREE.Mesh(line.geometry, material);
+    wireframe.line = line;
+
+    return wireframe;
+  });
+
+  return wireframes;
 }
