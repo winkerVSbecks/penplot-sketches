@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "canvas-sketch --output=prints --stream=gif",
+    "start": "canvas-sketch --output=prints --stream=gif --fps=24",
     "test": "echo \"Error: no test specified\" && exit 1",
     "json": "cat quickdraw-dataset/circle.ndjson | npx ndjson-filter 'd.recognized == true' | npx ndjson-reduce > quickdraw-dataset/circle.json",
     "json_2000": "cat quickdraw-dataset/pizza.ndjson | npx ndjson-filter 'd.recognized == true' | head -n 2000 | npx ndjson-reduce > quickdraw-dataset/pizza_5000.json"
@@ -32,6 +32,8 @@
     "poisson-disk-sampling": "^1.0.6",
     "polygon-clipping": "^0.14.3",
     "polyhedra": "^1.0.0",
+    "rbush": "^3.0.1",
+    "rbush-knn": "^3.0.1",
     "riso-colors": "^1.0.1",
     "three": "^0.116.1",
     "three.meshline": "^1.2.0"
