@@ -6,16 +6,18 @@ const {
 } = require('canvas-sketch-util/penplot');
 const { clipPolylinesToBox } = require('canvas-sketch-util/geometry');
 const { mapRange, lerpFrames } = require('canvas-sketch-util/math');
+const Bezier = require('bezier-js');
 
 const settings = {
   dimensions: [21.59, 13.97],
   orientation: 'landscape',
   pixelsPerInch: 300,
-  scaleToView: true,
   units: 'cm',
+  scaleToView: true,
   prefix: '8.5x5.5-',
   animate: true,
   duration: 6,
+  fps: 24,
 };
 
 const sketch = (props) => {
@@ -53,7 +55,7 @@ const sketch = (props) => {
       ...props,
       lineJoin: 'round',
       lineCap: 'round',
-      lineWidth: 0.05,
+      // lineWidth: 0.05,
       optimize: true,
     });
   };
@@ -85,11 +87,16 @@ function block(props) {
   p.lineTo(x + width, y);
   p.lineTo(...b2);
 
-  const e1 = edge(p, b1, props);
-  const e2 = edge(p, b2, props, true);
+  const edge1 = edge(p, b1, props);
+  const edge2 = edge(p, b2, props, true);
 
-  p.moveTo(...e1);
-  p.lineTo(...e2);
+  drawEdgeInFront(p, edge1);
+  drawEdgeInBack(p, edge1, edge2);
+
+  p.moveTo(...edge1.c);
+  p.lineTo(...edge2.c);
+
+  p.moveTo(x, y);
 
   return p;
 }
@@ -111,18 +118,56 @@ function edge(
 
   const a = [e1, y + height];
   const c = [e2, y + height];
-  const ec1 = edgeCurve(b, a, rawPlayhead);
-  const ec2 = edgeCurve(b, c, rawPlayhead);
+  const ec1 = edgeCurve(b, a, rawPlayhead, b);
+  const ec2 = edgeCurve(b, c, rawPlayhead, b);
 
+  return { ec1, ec2, b, c, a };
+}
+
+function drawEdgeInFront(p, { ec1, ec2, b, c }) {
   p.moveTo(...b);
-  if (!hiddenEdge) {
-    p.bezierCurveTo(...ec1);
-    p.lineTo(...c);
-  }
+  p.bezierCurveTo(...ec1);
+  p.lineTo(...c);
   p.moveTo(...b);
   p.bezierCurveTo(...ec2);
+}
 
-  return c;
+function drawEdgeInBack(p, edge1, edge2) {
+  const curve1 = new Bezier(...edge1.b, ...edge1.ec2);
+  const curve2 = new Bezier(...edge2.b, ...edge2.ec2);
+
+  const curve3 = new Bezier(...edge1.b, ...edge1.ec1);
+  const curve4 = new Bezier(...edge2.b, ...edge2.ec1);
+
+  const intersectionsA = curve2.intersects(curve1, 0.1);
+  const intersectionsB = curve4.intersects(curve3, 0.1);
+
+  if (intersectionsA.length > 0) {
+    intersectionsA.forEach((pair) => {
+      const t = pair.split('/').map((v) => parseFloat(v));
+
+      const [p0, p1, p2, p3] = curve2.split(t[0]).left.points;
+
+      p.moveTo(p0.x, p0.y);
+      p.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    });
+
+    intersectionsB.forEach((pair) => {
+      const t = pair.split('/').map((v) => parseFloat(v));
+
+      const [p0, p1, p2, p3] = curve4.split(t[0]).right.points;
+
+      p.moveTo(p0.x, p0.y);
+      p.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    });
+
+    p.moveTo(...edge2.a);
+    p.lineTo(...edge2.c);
+  } else {
+    const { ec1, ec2, b, c } = edge2;
+    p.moveTo(...b);
+    p.bezierCurveTo(...ec2);
+  }
 }
 
 function edgeLocations({ x, width, thickness: s, playhead: t }) {
@@ -146,22 +191,3 @@ function edgeCurve([x1, y1], [x2, y2], playhead) {
 
   return [...cp1, ...cp2, x2, y2];
 }
-
-// function edgeCurve({ x, b, height, playhead }) {
-//   const a1Off = mapRange(playhead, 0, 1, height * 0, height * 0.5);
-
-//   const cp1 = [b[0], b[1] + a1Off];
-//   const cp2 = [x, height - a1Off];
-
-//   return [...cp1, ...cp2, height / 2];
-// }
-
-// function edgeCurve({ x, b, height, playhead }) {
-//   const a1Off = mapRange(playhead, 0, 1, height * 0, height * 0.5);
-
-//   const a = [x, height];
-//   const a1 = [b[0], b[1] + a1Off];
-//   const a2 = [x, height];
-
-//   return [...a1, ...a2, ...a];
-// }
