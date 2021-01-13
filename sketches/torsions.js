@@ -4,135 +4,188 @@ const {
   createPath,
   pathsToPolylines,
 } = require('canvas-sketch-util/penplot');
-const { clipPolylinesToBox } = require('canvas-sketch-util/geometry');
-const { mapRange, lerpFrames } = require('canvas-sketch-util/math');
+const { mapRange, lerpFrames, linspace } = require('canvas-sketch-util/math');
 const Bezier = require('bezier-js');
 
 const settings = {
   dimensions: [21.59, 13.97],
+  // dimensions: [29.7, 21],
   orientation: 'landscape',
   pixelsPerInch: 300,
   units: 'cm',
   scaleToView: true,
-  prefix: '8.5x5.5-',
+  prefix: '29.7x21-',
   animate: true,
   duration: 6,
   fps: 24,
 };
 
 const sketch = (props) => {
-  const { width, height } = props;
+  const { width, height, units } = props;
 
   const margin = width / 22;
 
-  const clipBox = [
-    [margin, margin],
-    [width - margin, height - margin],
-  ];
+  const count = 8;
 
-  return (props) => {
-    const paths = [];
+  const w = (width - (count + 1) * margin) / count;
 
-    [0, 1, 2, 3, 4, 5, 6].forEach((idx) => {
-      const path = block({
-        x: margin + margin * 3 * idx,
-        y: margin,
-        width: margin * 2,
-        height: height - margin * 2,
-        playhead: Math.abs(
-          Math.sin(props.playhead * Math.PI + ((Math.PI / 4) * idx) / 6)
-        ),
-      });
-      paths.push(path);
-    });
+  const paths = linspace(count).map((_, idx) =>
+    drawBlock({
+      x: margin + (w + margin) * idx,
+      y: 2 * margin,
+      width: w,
+      height: height - 4 * margin,
+      thickness: w * 0.02,
+      playhead: Math.min(idx / count, 0.99),
+    })
+  );
 
-    const lines = pathsToPolylines(paths, {
-      units: props.units,
-    });
+  const lines = pathsToPolylines(paths, {
+    units: units,
+  });
 
-    // clipPolylinesToBox(lines, clipBox, false, false);
-    return renderPaths(lines, {
+  return (props) =>
+    renderPaths(lines, {
       ...props,
       lineJoin: 'round',
       lineCap: 'round',
-      // lineWidth: 0.05,
+      lineWidth: 0.05,
       optimize: true,
     });
-  };
 };
 
 canvasSketch(sketch, settings);
 
 /**
- *
  *    *       *
  *
  *
  *
- *    b1      b2
+ *    b(edge1) b(edge2)
  *    (point where curve starts)
  *
  *
  *    * a c   *
- *
  */
-function block(props) {
+function drawBlock(props) {
   const { x, y, width, height, playhead } = props;
-  const p = createPath();
+  // Start points for the edge curves
   const b1 = [x, mapRange(playhead, 0, 1, y + height * 1, y)];
   const b2 = [x + width, mapRange(playhead, 0, 1, y + height * 1, y)];
 
-  p.moveTo(...b1);
-  p.lineTo(x, y);
-  p.lineTo(x + width, y);
-  p.lineTo(...b2);
+  const edge1 = edge(b1, props, false, true);
+  const edge2 = edge(b2, props, true);
 
-  const edge1 = edge(p, b1, props);
-  const edge2 = edge(p, b2, props, true);
+  const intersectionProps = intersections(edge1, edge2);
 
-  drawEdgeInFront(p, edge1);
-  drawEdgeInBack(p, edge1, edge2);
+  const path = createPath();
 
-  p.moveTo(...edge1.c);
-  p.lineTo(...edge2.c);
-
-  p.moveTo(x, y);
-
-  return p;
+  drawFaces(path, intersectionProps, { x, y, width, height });
+  drawFrontEdge(path, edge1);
+  return path;
 }
 
 function edge(
-  p,
   b,
-  { x, y, width, height, playhead: rawPlayhead },
-  hiddenEdge
+  { x, y, width, height, thickness, playhead: rawPlayhead },
+  hiddenEdge,
+  perspective
 ) {
   const playhead = hiddenEdge ? 1 - rawPlayhead : rawPlayhead;
 
-  const [e1, e2] = edgeLocations({
+  const [aX, cX] = bottomVerticesX({
     width,
-    thickness: width * 0.1,
+    thickness: thickness,
     playhead: playhead,
     x,
   });
 
-  const a = [e1, y + height];
-  const c = [e2, y + height];
-  const ec1 = edgeCurve(b, a, rawPlayhead, b);
-  const ec2 = edgeCurve(b, c, rawPlayhead, b);
+  const a = [aX, y + height];
+  const c = [cX, y + height];
+  const ec1 = edgeCurve(b, a, rawPlayhead);
+  const ec2 = edgeCurve(b, c, rawPlayhead, perspective);
 
-  return { ec1, ec2, b, c, a };
+  return { ec1, ec2, a, b, c };
 }
 
-function drawEdgeInFront(p, { ec1, ec2, b, c }) {
-  p.moveTo(...b);
-  p.bezierCurveTo(...ec1);
-  p.lineTo(...c);
-  p.moveTo(...b);
-  p.bezierCurveTo(...ec2);
+/**
+ *    U       V
+ *    *       *
+ *
+ *    p       q
+ *
+ *       ta
+ *       tb
+ *
+ *    *  s r  *
+ */
+function drawFaces(
+  path,
+  { tA, tB, curve1, curve2, curve3, curve4 },
+  { x, y, width }
+) {
+  const U = [x, y];
+  const V = [x + width, y];
+  const [p, , , s] = curve3.points;
+  const [q, , , r] = curve2.points;
+
+  // Found an intersection
+  // draw chunks of front and back parts
+  if (tA && tB) {
+    path.moveTo(p.x, p.y);
+    path.lineTo(...U);
+    path.lineTo(...V);
+    path.lineTo(q.x, q.y);
+    drawBezierCurve(path, curve2.split(tA[0]).left);
+    drawBezierCurve(path, curve1.split(tA[1]).left, {
+      move: false,
+      reverse: true,
+    });
+
+    path.moveTo(s.x, s.y);
+    drawBezierCurve(path, curve3.split(tB[1]).right, {
+      move: false,
+      reverse: true,
+    });
+    drawBezierCurve(path, curve4.split(tB[0]).right, {
+      move: false,
+    });
+    path.closePath();
+  } else {
+    // No intersection
+    // Draw the full front face
+    path.moveTo(p.x, p.y);
+    path.lineTo(...U);
+    path.lineTo(...V);
+    path.lineTo(q.x, q.y);
+    drawBezierCurve(path, curve2, { move: false });
+    path.lineTo(s.x, s.y);
+    drawBezierCurve(path, curve3, { move: false, reverse: true });
+  }
 }
 
-function drawEdgeInBack(p, edge1, edge2) {
+/**
+ * Draw the thick edge
+ */
+function drawFrontEdge(path, { ec1, ec2, a, b, c }) {
+  path.moveTo(...b);
+  path.bezierCurveTo(...ec1);
+  path.moveTo(...b);
+  path.bezierCurveTo(...ec2);
+  path.lineTo(...a);
+}
+
+/**
+ * Find intersections between curve pairs
+ *
+ * Remember we are drawing double curves, so
+ * we find intersection between outside curve
+ * from one side and inside curve from the other
+ *
+ *
+ * curve1 curve3 curve2 curve4
+ */
+function intersections(edge1, edge2) {
   const curve1 = new Bezier(...edge1.b, ...edge1.ec2);
   const curve2 = new Bezier(...edge2.b, ...edge2.ec2);
 
@@ -142,35 +195,29 @@ function drawEdgeInBack(p, edge1, edge2) {
   const intersectionsA = curve2.intersects(curve1, 0.1);
   const intersectionsB = curve4.intersects(curve3, 0.1);
 
-  if (intersectionsA.length > 0) {
-    intersectionsA.forEach((pair) => {
-      const t = pair.split('/').map((v) => parseFloat(v));
+  const tA = intersectionsA.map((pair) =>
+    pair.split('/').map((v) => parseFloat(v))
+  );
 
-      const [p0, p1, p2, p3] = curve2.split(t[0]).left.points;
+  const tB = intersectionsB.map((pair) =>
+    pair.split('/').map((v) => parseFloat(v))
+  );
 
-      p.moveTo(p0.x, p0.y);
-      p.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
-    });
-
-    intersectionsB.forEach((pair) => {
-      const t = pair.split('/').map((v) => parseFloat(v));
-
-      const [p0, p1, p2, p3] = curve4.split(t[0]).right.points;
-
-      p.moveTo(p0.x, p0.y);
-      p.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
-    });
-
-    p.moveTo(...edge2.a);
-    p.lineTo(...edge2.c);
-  } else {
-    const { ec1, ec2, b, c } = edge2;
-    p.moveTo(...b);
-    p.bezierCurveTo(...ec2);
-  }
+  return {
+    tA: tA[0],
+    tB: tB[0],
+    curve1,
+    curve2,
+    curve3,
+    curve4,
+  };
 }
 
-function edgeLocations({ x, width, thickness: s, playhead: t }) {
+/**
+ * Calculate the X component for
+ * the bottom vertices
+ */
+function bottomVerticesX({ x, width, thickness: s, playhead: t }) {
   const angle = Math.PI + Math.PI * t;
   const r = width / 2;
 
@@ -181,13 +228,37 @@ function edgeLocations({ x, width, thickness: s, playhead: t }) {
   return [p1[0], p2[0]];
 }
 
-const K = 0.37;
-function edgeCurve([x1, y1], [x2, y2], playhead) {
+/**
+ * The bezier curve definition for the edge curve
+ * Returns the two control points and the end point
+ */
+function edgeCurve([x1, y1], [x2, y2], playhead, perspective) {
   const K1 = 0.37;
-  const K2 = lerpFrames([0, 0, 0.37], playhead);
+  const K2 = perspective
+    ? lerpFrames([0, 0, 0.6], playhead)
+    : lerpFrames([0, 0, 0.37], playhead);
 
   const cp1 = [x1, y1 + K1 * (y2 - y1)];
   const cp2 = [x2, y2 - K2 * (y2 - y1)];
 
   return [...cp1, ...cp2, x2, y2];
+}
+
+/**
+ * A little utility to draw bezier curves
+ * Simply moves to the start point then
+ * calls the curve command
+ *
+ * Optionally allows you to draw the curve in reverse
+ */
+function drawBezierCurve(path, curve, { move = true, reverse = false } = {}) {
+  const [p0, p1, p2, p3] = curve.points;
+  if (move) {
+    path.moveTo(p0.x, p0.y);
+  }
+  if (reverse) {
+    path.bezierCurveTo(p2.x, p2.y, p1.x, p1.y, p0.x, p0.y);
+  } else {
+    path.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+  }
 }

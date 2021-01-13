@@ -15,10 +15,12 @@ console.log('Random Seed:', Random.getSeed());
 const settings = {
   suffix: Random.getSeed(),
   dimensions: [21.59, 13.97],
+  // dimensions: [29.7, 21],
   orientation: 'landscape',
   pixelsPerInch: 300,
   scaleToView: true,
   units: 'cm',
+  prefix: '29.7x21-',
 };
 
 const sketch = (props) => {

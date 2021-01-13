@@ -15,6 +15,7 @@
   "dependencies": {
     "@anvaka/streamlines": "^1.1.0",
     "@ffmpeg-installer/ffmpeg": "^1.0.20",
+    "@lnjs/core": "^0.5.0",
     "@magenta/sketch": "^0.2.0",
     "bezier-js": "^2.6.1",
     "canvas-sketch": "^0.7.1",

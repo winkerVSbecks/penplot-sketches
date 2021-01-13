@@ -7,14 +7,14 @@ const streamlines = require('@anvaka/streamlines');
 
 const settings = {
   dimensions: [29.7, 21],
+  prefix: '21x29.7-',
   orientation: 'portrait',
   pixelsPerInch: 300,
   scaleToView: true,
   units: 'cm',
-  prefix: '21x29.7-',
 };
 
-const sketch = async props => {
+const sketch = async (props) => {
   const { width, height } = props;
 
   const seed = 100; // 0 1000
@@ -53,7 +53,7 @@ const sketch = async props => {
 
   console.log('Draw!');
 
-  return props =>
+  return (props) =>
     renderPaths(clipPolylinesToBox(lines, clipBox, false, false), {
       ...props,
       lineJoin: 'round',
