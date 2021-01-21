@@ -17,7 +17,6 @@ const settings = {
 
 const sketch = (props) => {
   const { width, height, units } = props;
-  console.log(props);
 
   const origin = [width / 2, height / 2];
   const side = width * 0.5;
