@@ -39,7 +39,7 @@
     "rbush": "^3.0.1",
     "rbush-knn": "^3.0.1",
     "riso-colors": "^1.0.1",
-    "three": "^0.116.1",
+    "three": "^0.137.0",
     "three.meshline": "^1.2.0",
     "triangle-circle-collision": "^1.0.4"
   }
