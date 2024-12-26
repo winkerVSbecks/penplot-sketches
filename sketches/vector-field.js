@@ -12,7 +12,9 @@ const settings = {
   prefix: '8.5x5.5-',
 };
 
-const sketch = props => {
+const sketch = (props) => {
+  console.log(props);
+
   const { width, height } = props;
 
   const GR = 1.618033988749895;
@@ -90,7 +92,7 @@ const sketch = props => {
     [width - margin, height - 0.25 * width],
   ];
 
-  return props =>
+  return (props) =>
     renderPaths(clipPolylinesToBox(lines, clipBox, false, false), {
       ...props,
       lineJoin: 'round',
