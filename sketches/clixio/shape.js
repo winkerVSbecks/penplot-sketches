@@ -12,8 +12,6 @@ const settings = {
 };
 
 const sketch = (props) => {
-  console.log(props);
-
   const { width, height } = props;
 
   const margin = width * 0.1;
@@ -22,10 +20,10 @@ const sketch = (props) => {
   const x = r + margin;
   const y = r + margin;
 
-  const clixioPaths = drawClixo(x, y, r);
+  const clixioPaths = drawClixo(x, y, r, true);
 
-  return (props) => {
-    const p = renderPaths(
+  return (props) =>
+    renderPaths(
       clixioPaths.map((p) => p.toString()),
       {
         ...props,
@@ -35,10 +33,6 @@ const sketch = (props) => {
         optimize: true,
       }
     );
-
-    return p[1];
-    // return [...p, ...p];
-  };
 };
 
 canvasSketch(sketch, settings);
